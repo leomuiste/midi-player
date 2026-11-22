@@ -1,0 +1,9 @@
+tests/out_*
+__pycache__/
+# built by CI; never committed
+dist/
+_site/
+# private songs: keep out of the public repo
+assets/songs/
+# private working notes
+CLAUDE.md

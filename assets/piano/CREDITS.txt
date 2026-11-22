@@ -1,0 +1,3 @@
+Salamander Grand Piano V3 by Alexander Holm, licensed CC BY 3.0 (https://creativecommons.org/licenses/by/3.0/).
+Source of these MP3s: github.com/Tonejs/audio (salamander/), re-encoded mono 32 kHz 56 kbps, trimmed to 6 s with a 2 s fade.
+Attribution must remain visible on the page.
