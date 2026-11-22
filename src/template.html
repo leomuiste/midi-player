@@ -2,14 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>MIDI Player</title>
 <style>
 :root{--bg:#111316;--fg:#e9ecef;--mut:#8a929b;--acc:#4fb3ff;--card:#1b1e23;--b:34px}
 @media (max-width:360px){:root{--b:30px}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px -apple-system,system-ui,sans-serif;display:flex;justify-content:center}
-main{width:100%;max-width:520px;padding:20px 16px 32px}
+/* safe-area padding: some browsers (seen: Brave on iPhone) draw the page under the status bar; env() is 0 where they don't */
+main{width:100%;max-width:520px;padding:max(20px,calc(env(safe-area-inset-top) + 8px)) max(16px,env(safe-area-inset-right)) max(32px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
 header{display:flex;align-items:center;gap:8px}
 .ib{flex:none;width:38px;height:38px;padding:0;border-radius:50%;display:flex;align-items:center;justify-content:center}
 .ib svg{width:22px;height:22px}
@@ -91,12 +92,12 @@ label.pick{position:absolute;inset:0;z-index:1;cursor:pointer;display:none}
   <button id="play" class="ns">▶ Play</button>
   <button id="stop" class="ns">■ Stop</button>
 </div>
-<div class="row tempo ns">Tempo <span class="tsel"><button id="tdn" class="st" aria-label="Slower">−</button><button id="bpm" aria-label="Tempo; tap to reset to the original">–</button><button id="tup" class="st" aria-label="Faster">+</button></span></div>
+<div class="row tempo ns"><span class="tsel" role="group" aria-label="Tempo"><button id="tdn" class="st" aria-label="Slower">−</button><button id="bpm" aria-label="Tempo; tap to reset to the original">–</button><button id="tup" class="st" aria-label="Faster">+</button></span></div>
 <div class="ctl2 ns">
   <button id="met" class="tog">Metronome</button>
   <button id="cin" class="tog">Count-in</button>
 </div>
-<div class="row ns">Sound <select id="inst"><option value="synth">Synth</option><option value="piano">Piano</option><option value="organ">Organ</option><option value="choir">Choir "Ooh"</option></select></div>
+<div class="row ns"><select id="inst" aria-label="Sound"><option value="synth">Synth</option><option value="piano">Piano</option><option value="organ">Organ</option><option value="choir">Choir "Ooh"</option></select></div>
 </main>
 <dialog id="about" aria-labelledby="abouth">
   <div class="dh"><h2 id="abouth">How to use</h2><form method="dialog"><button class="ib" aria-label="Close">✕</button></form></div>

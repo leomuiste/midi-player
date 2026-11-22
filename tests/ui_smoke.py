@@ -213,9 +213,13 @@ async def main():
         orig = await pg.evaluate("Math.round(song.bpm)")
         info = await pg.evaluate("document.getElementById('info').textContent")
         check("info line starts with the file's original tempo as 'N BPM'", info.startswith(f"{orig} BPM · "), info)
-        gaps = await pg.evaluate("""()=>{const r=id=>document.getElementById(id).getBoundingClientRect(),d=r('tdn'),b=r('bpm'),u=r('tup'),row=document.querySelector('.tempo').getBoundingClientRect();
-          return[Math.round(b.left-d.right),Math.round(u.left-b.right),Math.round((d.left+u.right)/2-(row.left+row.right)/2)]}""")
-        check("− and + sit right next to the tempo number", gaps[0] <= 8 and gaps[1] <= 8, f"gaps {gaps[0]}/{gaps[1]} px, group offset {gaps[2]} px from row centre")
+        gaps = await pg.evaluate("""()=>{const r=id=>document.getElementById(id).getBoundingClientRect(),d=r('tdn'),b=r('bpm'),u=r('tup'),mid=document.documentElement.clientWidth/2;
+          return[b.left-d.right,u.left-b.right,(b.left+b.right)/2-mid,(mid-d.left)-(u.right-mid)]}""")
+        check("− and + sit right next to the tempo number", gaps[0] <= 8 and gaps[1] <= 8, f"gaps {gaps[0]:.1f}/{gaps[1]:.1f} px")
+        check("tempo number sits on the page's centre line, − and + symmetric", abs(gaps[2]) < 1 and abs(gaps[3]) < 1,
+              f"number centre {gaps[2]:+.1f} px, asymmetry {gaps[3]:+.1f} px")
+        lbl = await pg.evaluate("[...document.querySelectorAll('.row')].map(r=>[...r.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent.trim()).join(''))")
+        check("no 'Tempo' / 'Sound' text labels next to the fields", not any(lbl), str(lbl))
         check("tempo starts at the original", await pg.evaluate("[bpm,speed]") == [orig, 1])
         await pg.click("#tup")
         st = await pg.evaluate("[bpm,speed,song.bpm,document.getElementById('bpm').textContent]")
