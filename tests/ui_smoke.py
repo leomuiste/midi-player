@@ -49,6 +49,20 @@ DROP = """async ([name,type,lanes])=>{const roll=document.querySelector('.roll')
     info:document.getElementById('info').textContent,rows:document.querySelectorAll('#lanes .lane').length,
     disabled:document.querySelectorAll(':disabled').length,nosong:document.body.classList.contains('nosong')}}""".replace("(MK)", "(" + MK_MIDI + ")")
 
+def mk_midi(nch):
+    """Same synthetic type-0 MIDI as MK_MIDI, as bytes (for the real file chooser)."""
+    def vlq(v):
+        o = [v & 127]; v >>= 7
+        while v: o.insert(0, (v & 127) | 128); v >>= 7
+        return o
+    ev = [e for c in range(nch) for k in range(8)
+          for e in ((k * 480, 0x90 | c, 48 + c * 4 + k % 3, 90), (k * 480 + 400, 0x80 | c, 48 + c * 4 + k % 3, 0))]
+    ev.sort(key=lambda e: (e[0], e[3]))
+    t, last = [], 0
+    for e in ev: t += vlq(e[0] - last) + list(e[1:]); last = e[0]
+    t += [0, 0xFF, 0x2F, 0]
+    return b"MThd" + bytes([0, 0, 0, 6, 0, 0, 0, 1, 1, 0xE0]) + b"MTrk" + len(t).to_bytes(4, "big") + bytes(t)
+
 def check_geom(tag, g, lanes):
     check(f"[{tag}] {lanes} lane rows render in the roll", g["rows"] == lanes == g["lanes"] and g["rowsInRoll"], str(g))
     check(f"[{tag}] ♪ All / Reset inside roll, below the rows", g["cornerInRoll"] and g["cornerBelowRows"])
@@ -72,12 +86,24 @@ async def main():
             n = await pg.evaluate('document.querySelectorAll(":disabled").length')
             check("no-song: controls disabled", n > 0 and await pg.evaluate('document.body.classList.contains("nosong")'), f"{n} disabled")
             await pg.screenshot(path=str(OUT / "out_nosong.png"), full_page=True)
+            check("no-song: header Open .mid hidden", not await pg.locator("label.open").is_visible())
+            async with pg.expect_file_chooser(timeout=3000) as fc:
+                await pg.click(".roll")
+            await (await fc.value).set_files({"name": "picked-2-lanes.mid", "mimeType": "audio/midi", "buffer": mk_midi(2)})
+            await pg.wait_for_timeout(300)
+            st = await pg.evaluate('[document.getElementById("title").textContent,document.querySelectorAll("#lanes .lane").length]')
+            check("no-song: tapping the empty roll opens the file chooser and loads the file", st == ["picked-2-lanes.mid", 2], str(st))
+            check("after loading: header Open .mid visible, roll tap layer gone",
+                  await pg.locator("label.open").is_visible() and not await pg.locator("label.pick").is_visible())
+            await pg.reload()
             d = await pg.evaluate(DROP, ["dropped-4-lanes.mid", "audio/midi", 4])
             check("no-song: dropping a .mid on the roll opens it and enables controls",
                   d["highlighted"] and d["cleared"] and d["title"] == "dropped-4-lanes.mid" and d["rows"] == 4 and d["disabled"] == 0 and not d["nosong"], str(d))
             check("no JS errors", not errs, str(errs)); await b.close(); return
 
         # --- layout with the built-in song ---
+        check("song loaded: header Open .mid visible, roll tap layer gone",
+              await pg.locator("label.open").is_visible() and not await pg.locator("label.pick").is_visible())
         check_geom("390px song", await pg.evaluate(GEOM), await pg.evaluate("laneChans().length"))
 
         # --- count-in ---

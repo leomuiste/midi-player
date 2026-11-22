@@ -8,7 +8,7 @@ Everything runs in the browser. Nothing is uploaded, and the page makes no netwo
 
 ## Use
 
-- **Open a song:** tap **Open .mid**, or drag a `.mid` file onto the piano roll.
+- **Open a song:** tap the empty piano roll, or drag a `.mid` file onto it. Once a song is open, **Open .mid** (top right) loads another one, and dropping a file on the roll still works.
 - **Move through the song:** drag the piano roll left or right with a finger or the mouse, or tap the timeline. Dragging during playback pauses it, and playback continues from where you let go.
 - **Lanes:** the controls are on the left of the roll. **S** solos a lane, **M** mutes it, and the note button shows and plays the note the lane is singing now (or its next note). **♪ All** plays every audible lane's note; **Reset** clears solo and mute.
 - **Also:** metronome, one-bar count-in, speed 0.5–1.5×, and synth, piano, organ and choir sounds.

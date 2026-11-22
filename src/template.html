@@ -52,7 +52,11 @@ body:not(.nosong) .roll canvas{cursor:grab}
 /* before a song is loaded: everything but Open .mid is greyed, blurred and inert */
 .ns{transition:opacity .25s,filter .25s}
 .nosong .ns{opacity:.3;filter:grayscale(1) blur(1px);pointer-events:none}
-.nosong canvas{cursor:pointer}
+/* with no song, the empty roll is the open button (tap/click or drop); the header's Open .mid appears once a song is loaded */
+.nosong label.open{visibility:hidden}
+.nosong .roll{border:2px dashed #3a414a}
+label.pick{position:absolute;inset:0;z-index:1;cursor:pointer;display:none}
+.nosong label.pick{display:block}
 </style>
 </head>
 <body class="nosong">
@@ -63,7 +67,7 @@ body:not(.nosong) .roll canvas{cursor:grab}
   <input type="file" id="file" accept=".mid,.midi,audio/midi,audio/x-midi">
 </header>
 <div id="info"></div>
-<div class="roll"><canvas id="roll"></canvas><div id="lanes"></div></div>
+<div class="roll"><canvas id="roll"></canvas><div id="lanes"></div><label class="pick" for="file" aria-label="Open a .mid file"></label></div>
 <div class="bar ns" id="bar"><i id="fill"></i></div>
 <div class="time ns"><span id="cur">0:00</span><span id="barn"></span><span id="dur">0:00</span></div>
 <div class="ctl">
@@ -339,8 +343,10 @@ function draw(){
   const dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight,bw=Math.round(W*dpr),bh=Math.round(H*dpr);
   if(cv.width!==bw||cv.height!==bh){cv.width=bw;cv.height=bh}
   g2.setTransform(dpr,0,0,dpr,0,0);g2.clearRect(0,0,W,H);
-  if(!song){g2.fillStyle="#8a929b";g2.font="600 17px -apple-system,system-ui,sans-serif";g2.textAlign="center";g2.textBaseline="middle";
-    g2.fillText(matchMedia("(pointer:fine)").matches?"Drop a .mid here or click Open .mid":"Tap Open .mid",W/2,H/2);g2.textAlign="left";g2.textBaseline="alphabetic";return}
+  if(!song){const fine=matchMedia("(pointer:fine)").matches;g2.textAlign="center";g2.textBaseline="middle";
+    g2.fillStyle="#aab1b9";g2.font="600 17px -apple-system,system-ui,sans-serif";g2.fillText(fine?"Drop a .mid file here":"Tap to open a .mid file",W/2,fine?H/2-11:H/2);
+    if(fine){g2.fillStyle="#8a929b";g2.font="14px -apple-system,system-ui,sans-serif";g2.fillText("or click to choose one",W/2,H/2+13)}
+    g2.textAlign="left";g2.textBaseline="alphabetic";return}
   const t=pos(),phx=laneW,px=(W-phx)/AHEAD,x0=t-phx/px,win=W/px,rh=H/(hi-lo+1);
   g2.font="10px -apple-system,system-ui,sans-serif";
   song.bars.forEach((b,i)=>{const x=(b.s-x0)*px;if(x<-40||x>W)return;g2.fillStyle="rgba(255,255,255,.09)";g2.fillRect(x,0,1,H);g2.fillStyle="rgba(255,255,255,.35)";g2.fillText(i+1,x+3,11)});
@@ -367,7 +373,6 @@ function setReady(on){
   document.body.classList.toggle("nosong",!on);
   document.querySelectorAll(".ns button,.ns input,.ns select,button.ns").forEach(el=>el.disabled=!on);
 }
-cv.onclick=()=>{if(!song)$("file").click()};
 playBtn.onclick=()=>{if(playing){offset=pos();halt();draw()}else play(true)};
 $("stop").onclick=()=>{halt();offset=0;draw()};
 $("file").onchange=e=>{const f=e.target.files[0];if(f)f.arrayBuffer().then(b=>load(b,f.name));e.target.value=""};
