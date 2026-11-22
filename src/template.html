@@ -49,7 +49,8 @@ body:not(.nosong) .roll canvas{cursor:grab}
 .row select{flex:1;background:var(--card);color:var(--fg);border:0;border-radius:10px;padding:10px;font-size:16px;-webkit-appearance:none;appearance:none;padding-right:34px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238a929b' stroke-width='2' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
 /* tempo: − [BPM] + ; tap = ±1, hold = repeat */
 .tempo button.st{flex:none;width:56px;padding:9px 0;font-size:24px;line-height:1;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation}
-#bpm{flex:1;padding:9px 0;font-size:20px;font-variant-numeric:tabular-nums;background:none}
+.tsel{flex:1;display:flex;justify-content:center;gap:6px}
+#bpm{flex:none;width:104px;padding:9px 0;font-size:20px;font-variant-numeric:tabular-nums;background:none}
 #bpm small{font-size:12px;font-weight:500;color:var(--mut);margin-left:4px}
 /* info window */
 dialog{width:min(480px,calc(100% - 32px));max-height:calc(100% - 48px);padding:0;border:0;border-radius:16px;background:var(--card);color:var(--fg)}
@@ -60,6 +61,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 .db{padding:2px 18px 18px;font-size:14px;line-height:1.45;color:#c9ced4}
 .db h3{font-size:14px;color:var(--fg);margin:14px 0 3px}
 .db p{margin:0}
+.db p.sep{margin-top:14px}
 .db b{color:var(--fg)}
 .db .credit{margin-top:16px;padding-top:12px;border-top:1px solid #2a2f36;color:var(--mut);font-size:12px}
 .db a{color:var(--acc)}
@@ -89,7 +91,7 @@ label.pick{position:absolute;inset:0;z-index:1;cursor:pointer;display:none}
   <button id="play" class="ns">▶ Play</button>
   <button id="stop" class="ns">■ Stop</button>
 </div>
-<div class="row tempo ns">Tempo <button id="tdn" class="st" aria-label="Slower">−</button><button id="bpm" aria-label="Tempo; tap to reset to the original">–</button><button id="tup" class="st" aria-label="Faster">+</button></div>
+<div class="row tempo ns">Tempo <span class="tsel"><button id="tdn" class="st" aria-label="Slower">−</button><button id="bpm" aria-label="Tempo; tap to reset to the original">–</button><button id="tup" class="st" aria-label="Faster">+</button></span></div>
 <div class="ctl2 ns">
   <button id="met" class="tog">Metronome</button>
   <button id="cin" class="tog">Count-in</button>
@@ -105,16 +107,12 @@ label.pick{position:absolute;inset:0;z-index:1;cursor:pointer;display:none}
     <p>Each MIDI channel is a lane with its own colour. Drag the roll left or right to move through the song, or tap the timeline under it. If you drag while it plays, it pauses and carries on from where you let go.</p>
     <h3>Lanes (left side of the roll)</h3>
     <p><b>S</b> solos a lane and <b>M</b> mutes it. Lanes you can't hear are dimmed. The <b>note button</b> shows the note the lane is singing now, or its next note; tap it to hear that note. <b>♪ All</b> plays every audible lane's note from low to high, then holds the chord. <b>Reset</b> clears solo and mute.</p>
-    <h3>Play and Stop</h3>
-    <p><b>Play</b>/<b>Pause</b> continues from where you are. <b>Stop</b> goes back to the start.</p>
+    <p class="sep"><b>Play</b>/<b>Pause</b> continues from where you are. <b>Stop</b> goes back to the start.</p>
     <h3>Tempo</h3>
     <p><b>−</b> and <b>+</b> change the tempo by 1 BPM; hold them to keep changing it. Tap the number to go back to the file's original tempo, which is shown at the top. The range is half to 1.5 times the original. If the file changes tempo partway through, the whole song is scaled.</p>
-    <h3>Metronome and Count-in</h3>
-    <p><b>Metronome</b> clicks every beat. <b>Count-in</b> plays one bar of clicks before the music starts when you press Play.</p>
-    <h3>Sound</h3>
-    <p>Synth, Piano, Organ or Choir "Ooh", used for all lanes.</p>
+    <p class="sep"><b>Metronome</b> clicks every beat. <b>Count-in</b> plays one bar of clicks before the music starts when you press Play.</p>
     <h3>No sound?</h3>
-    <p>On an iPhone, flip the silent switch off and check the volume.</p>
+    <p>Check that your device's silent mode or silent switch is off and the volume is up.</p>
     <p style="margin-top:12px">Everything runs in your browser. Files are never uploaded.</p>
     <p class="credit">Piano samples: Salamander Grand Piano by Alexander Holm, licensed <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a>.</p>
   </div>
@@ -398,7 +396,7 @@ function draw(){
   document.querySelectorAll(".lane").forEach(el=>{const n=nextNote(+el.dataset.ch,t),b=el.querySelector(".pt"),txt=n?noteName(n.n):"–";if(b.textContent!==txt)b.textContent=txt});
 }
 function showInfo(){if(!song)return;const chans=laneChans().length;
-  $("info").textContent=`Original tempo ${origBpm()} BPM${song.tempoChanges?" (changes)":""} · ${song.notes.length} notes · ${chans} lane${chans>1?"s":""} · ${song.bars.length} bars`}
+  $("info").textContent=`${origBpm()} BPM${song.tempoChanges?" (changes)":""} · ${song.notes.length} notes · ${chans} lane${chans>1?"s":""} · ${song.bars.length} bars`}
 function load(buf,name){
   try{halt();song=parseMidi(buf);offset=0;$("title").textContent=name;speed=1;bpm=origBpm();tempoLabel();
     lo=127;hi=0;for(const n of song.notes){lo=Math.min(lo,n.n);hi=Math.max(hi,n.n)}lo-=2;hi+=2;

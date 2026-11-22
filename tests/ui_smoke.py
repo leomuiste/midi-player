@@ -200,6 +200,9 @@ async def main():
         await pg.click("#infob")
         dl = await pg.evaluate("[about.open,about.textContent.includes('Salamander Grand Piano by Alexander Holm'),about.textContent.includes('CC BY 3.0')]")
         check("info button opens the info window with the piano credit", all(dl), str(dl))
+        hs = await pg.evaluate("[[...about.querySelectorAll('h3')].map(h=>h.textContent),about.textContent.includes('iPhone')]")
+        check("info window: no Play/Stop, Metronome or Sound titles, not iPhone-specific",
+              not any(h in hs[0] for h in ("Play and Stop", "Metronome and Count-in", "Sound")) and not hs[1], str(hs))
         await pg.screenshot(path=str(OUT / "out_info.png"))
         await pg.click("#about .dh button"); await pg.wait_for_timeout(100)
         check("✕ closes the info window", not await pg.evaluate("about.open"))
@@ -209,7 +212,10 @@ async def main():
         # --- tempo: original shown top left; − [BPM] + ; tap = ±1, hold repeats ~3-4/s, applied on release ---
         orig = await pg.evaluate("Math.round(song.bpm)")
         info = await pg.evaluate("document.getElementById('info').textContent")
-        check("info line shows the file's original tempo", info.startswith(f"Original tempo {orig} BPM"), info)
+        check("info line starts with the file's original tempo as 'N BPM'", info.startswith(f"{orig} BPM · "), info)
+        gaps = await pg.evaluate("""()=>{const r=id=>document.getElementById(id).getBoundingClientRect(),d=r('tdn'),b=r('bpm'),u=r('tup'),row=document.querySelector('.tempo').getBoundingClientRect();
+          return[Math.round(b.left-d.right),Math.round(u.left-b.right),Math.round((d.left+u.right)/2-(row.left+row.right)/2)]}""")
+        check("− and + sit right next to the tempo number", gaps[0] <= 8 and gaps[1] <= 8, f"gaps {gaps[0]}/{gaps[1]} px, group offset {gaps[2]} px from row centre")
         check("tempo starts at the original", await pg.evaluate("[bpm,speed]") == [orig, 1])
         await pg.click("#tup")
         st = await pg.evaluate("[bpm,speed,song.bpm,document.getElementById('bpm').textContent]")
