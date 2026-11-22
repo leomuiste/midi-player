@@ -5,43 +5,45 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MIDI Player</title>
 <style>
-:root{--bg:#111316;--fg:#e9ecef;--mut:#8a929b;--acc:#4fb3ff;--card:#1b1e23}
+:root{--bg:#111316;--fg:#e9ecef;--mut:#8a929b;--acc:#4fb3ff;--card:#1b1e23;--b:34px}
+@media (max-width:360px){:root{--b:30px}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px -apple-system,system-ui,sans-serif;display:flex;justify-content:center}
 main{width:100%;max-width:520px;padding:20px 16px 32px}
-h1{font-size:20px;margin:4px 0 2px}
-#info{color:var(--mut);font-size:13px;margin-bottom:14px;min-height:1.2em}
-canvas{width:100%;height:220px;background:var(--card);border-radius:12px;display:block}
+header{display:flex;align-items:center;gap:12px}
+h1{flex:1;min-width:0;font-size:20px;margin:4px 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#info{color:var(--mut);font-size:13px;margin-bottom:12px;min-height:1.2em}
+button,label.btn{flex:1;border:0;border-radius:12px;padding:14px 0;font-size:17px;font-weight:600;background:var(--card);color:var(--fg);text-align:center;cursor:pointer}
+label.open{flex:none;padding:9px 14px;font-size:15px;border-radius:10px}
+input[type=file]{display:none}
+/* piano roll; the lane panel sits on its left edge, the playhead at the panel's right edge */
+.roll{position:relative;display:flex;min-height:220px;background:var(--card);border-radius:12px;overflow:hidden}
+.roll canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#lanes{position:relative;z-index:1;display:flex;flex-direction:column;gap:4px;padding:6px 6px 6px 6px;background:rgba(8,10,13,.55);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}
+#lanes:empty{display:none}
+.lane{display:flex;align-items:center;gap:4px}
+.lane .sw{width:4px;height:calc(var(--b) - 10px);border-radius:2px;margin-right:1px;flex:none}
+.lane button{flex:none;width:var(--b);height:var(--b);padding:0;border-radius:8px;font-size:14px;background:rgba(255,255,255,.12)}
+.lane button.pt{font-size:12px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.lane button.m.on{background:#ff6f6f;color:#200}
+.lane button.s.on{background:#ffd84f;color:#221a00}
+.lane.off .sw,.lane.off .pt,.lane.off .s:not(.on),.lane.off .m:not(.on){opacity:.35}
+.lnc{display:flex;gap:4px;margin-top:auto;padding-top:4px}
+.lnc button{padding:5px 0;font-size:12px;font-weight:500;border-radius:7px;background:rgba(255,255,255,.12)}
 .bar{height:6px;background:#2a2f36;border-radius:3px;margin:14px 0 6px;position:relative;touch-action:none}
 .bar>i{position:absolute;left:0;top:0;bottom:0;background:var(--acc);border-radius:3px;width:0}
 .time{display:flex;justify-content:space-between;color:var(--mut);font-size:12px;font-variant-numeric:tabular-nums}
+.time span:nth-child(2){color:var(--fg)}
 .ctl{display:flex;gap:10px;margin-top:16px}
-button,label.btn{flex:1;border:0;border-radius:12px;padding:14px 0;font-size:17px;font-weight:600;background:var(--card);color:var(--fg);text-align:center;cursor:pointer}
 #play{background:var(--acc);color:#001522}
+.ctl2{display:flex;gap:8px;margin-top:16px}
+.ctl2 button{padding:11px 0;font-size:15px;font-weight:600}
+.tog.on{background:var(--acc);color:#001522}
 .row{display:flex;align-items:center;gap:10px;margin-top:16px;color:var(--mut);font-size:14px}
 .row select{flex:1;background:var(--card);color:var(--fg);border:0;border-radius:10px;padding:10px;font-size:16px;-webkit-appearance:none;appearance:none;padding-right:34px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238a929b' stroke-width='2' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
 .row input[type=range]{flex:1;accent-color:var(--acc)}
-input[type=file]{display:none}
-#lanes{margin-top:18px;display:flex;flex-direction:column;gap:8px}
-.lane{display:flex;align-items:center;gap:10px;background:var(--card);border-radius:12px;padding:8px 8px 8px 12px}
-.lane .sw{width:12px;height:12px;border-radius:3px;flex:none}
-.lane .nm{flex:1;min-width:0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.lane .nm small{display:block;color:var(--mut);font-size:12px}
-.lane.off .nm,.lane.off .sw{opacity:.35}
-.lane button{flex:none;width:44px;padding:10px 0;font-size:15px;background:#2a2f36}
-.lane button.m.on{background:#ff6f6f;color:#200}
-.lane button.s.on{background:#ffd84f;color:#221a00}
-.lanehd{display:flex;justify-content:space-between;align-items:center;color:var(--mut);font-size:13px;margin-top:20px}
-.lanehd button{flex:none;padding:6px 12px;font-size:13px;font-weight:500}
+#spdv{min-width:3.2em;text-align:right;font-variant-numeric:tabular-nums}
 .hint{color:var(--mut);font-size:12px;margin-top:18px;line-height:1.4}
-.time span:nth-child(2){color:var(--fg)}
-.bar #loopr{position:absolute;top:-4px;bottom:-4px;background:rgba(79,179,255,.22);border-left:2px solid var(--acc);border-right:2px solid var(--acc);display:none;pointer-events:none}
-.ctl2{display:flex;gap:8px;margin-top:10px}
-.ctl2 button{padding:11px 0;font-size:15px;font-weight:600}
-.tog.on{background:var(--acc);color:#001522}
-#loopl{flex:1.3;display:flex;align-items:center;justify-content:center;color:var(--mut);font-size:14px;background:none;font-weight:500}
-.lane button.pt{width:auto;min-width:58px;padding:10px 8px;font-size:14px;font-variant-numeric:tabular-nums}
-.lanehd .btns{display:flex;gap:8px}
 .credit{color:#5d646c;font-size:11px;margin-top:8px}
 /* before a song is loaded: everything but Open .mid is greyed, blurred and inert */
 .ns{transition:opacity .25s,filter .25s}
@@ -51,33 +53,26 @@ input[type=file]{display:none}
 </head>
 <body class="nosong">
 <main>
-<h1 id="title">MIDI Player</h1>
+<header>
+  <h1 id="title">MIDI Player</h1>
+  <label class="btn open" for="file">Open .mid</label>
+  <input type="file" id="file" accept=".mid,.midi,audio/midi,audio/x-midi">
+</header>
 <div id="info"></div>
-<canvas id="roll"></canvas>
-<div class="bar ns" id="bar"><div id="loopr"></div><i id="fill"></i></div>
+<div class="roll"><canvas id="roll"></canvas><div id="lanes"></div></div>
+<div class="bar ns" id="bar"><i id="fill"></i></div>
 <div class="time ns"><span id="cur">0:00</span><span id="barn"></span><span id="dur">0:00</span></div>
 <div class="ctl">
   <button id="play" class="ns">▶ Play</button>
   <button id="stop" class="ns">■ Stop</button>
-  <label class="btn" for="file">Open .mid</label>
-  <input type="file" id="file" accept=".mid,.midi,audio/midi,audio/x-midi">
 </div>
-<div class="ctl2 ns">
-  <button id="loopt" class="tog">⟳ Loop</button>
-  <button id="seta">Set A</button>
-  <button id="setb">Set B</button>
-  <span id="loopl">Loop off</span>
-</div>
+<div class="row ns">Speed <input type="range" id="spd" min="0.5" max="1.5" step="0.05" value="1"><span id="spdv">1.00×</span></div>
 <div class="ctl2 ns">
   <button id="met" class="tog">Metronome</button>
   <button id="cin" class="tog">Count-in</button>
 </div>
-<div class="row ns">Volume <input type="range" id="vol" min="0" max="1" step="0.01" value="0.7"></div>
 <div class="row ns">Sound <select id="inst"><option value="synth">Synth</option><option value="piano">Piano</option><option value="organ">Organ</option><option value="choir">Choir "Ooh"</option></select></div>
-<div class="row ns">Speed <input type="range" id="spd" min="0.5" max="1.5" step="0.05" value="1"><span id="spdv">1.00×</span></div>
-<div class="lanehd ns"><span>Lanes · ♪ starting note · S solo · M mute</span><span class="btns"><button id="pall">♪ All</button><button id="reset">Reset</button></span></div>
-<div id="lanes"></div>
-<div class="hint">Set A / Set B loop whole bars at the play position. If there's no sound, flip the iPhone's silent switch off.</div>
+<div class="hint">In the roll: S solos a lane, M mutes it, and the note button plays the lane's current or next note. If there's no sound, flip the iPhone's silent switch off.</div>
 <div class="credit">Piano samples: Salamander Grand Piano by Alexander Holm, CC BY 3.0.</div>
 </main>
 <script>
@@ -145,13 +140,14 @@ function parseMidi(buf){
 
 // ---------- Audio engine ----------
 let ctx,master,comp;
+const MASTER_GAIN=0.7; // fixed; phones have their own volume control
 const freq=n=>440*Math.pow(2,(n-69)/12);
 function ensureCtx(){
   if(ctx)return;
   try{if(navigator.audioSession)navigator.audioSession.type="playback"}catch(e){}
   ctx=new (window.AudioContext||window.webkitAudioContext)();
   comp=ctx.createDynamicsCompressor();comp.connect(ctx.destination);
-  master=ctx.createGain();master.gain.value=+vol.value;master.connect(comp);
+  master=ctx.createGain();master.gain.value=MASTER_GAIN;master.connect(comp);
 }
 let inst="synth";
 const LEVEL={synth:1,piano:1.15,organ:1.6,choir:0.9}; // loudness-matched to synth (piano trimmed below)
@@ -223,37 +219,25 @@ function click(t,acc,out){
 }
 
 // ---------- Transport (look-ahead scheduler) ----------
+// seg maps ctx time <-> song time for the current run: song time s plays at ctx time seg.c0+(s-seg.s0)/speed
 let song,offset=0,playing=false,starting=false,raf,timer,speed=1,curOut,metG,chanG={};
-let segs=[],schedS=0,ni=0,bi=0,countMarks=[];
-let metOn=false,cinOn=false,loopOn=false,loopA=null,loopB=null;
-const barEnd=i=>i+1<song.bars.length?song.bars[i+1].s:song.duration;
+let seg=null,ni=0,bi=0,countMarks=[];
+let metOn=false,cinOn=false;
 function barAt(s){const b=song.bars;let i=0;while(i+1<b.length&&b[i+1].s<=s+1e-6)i++;return i}
-const loopActive=()=>loopOn&&loopA!=null&&loopB!=null;
-const LA=()=>song.bars[loopA].s,LB=()=>barEnd(loopB);
-const limit=()=>loopActive()?LB():song.duration;
-const ctxOf=(seg,s)=>seg.c0+(s-seg.s0)/speed;
+const ctxOf=s=>seg.c0+(s-seg.s0)/speed;
 function noteIdx(s){let i=0;while(i<song.notes.length&&song.notes[i].start<s-1e-6)i++;return i}
 function beatIdx(s){let i=0;while(i<song.beats.length&&song.beats[i].s<s-1e-6)i++;return i}
-function startSeg(c0,s0){
-  const seg={c0,s0};segs.push(seg);if(segs.length>4)segs.shift();
-  schedS=s0;ni=noteIdx(s0);bi=beatIdx(s0);
-  const end=limit();
-  for(const n of song.notes){if(n.start>=s0-1e-6)break;if(n.end>s0+0.02)voice(n,c0,ctxOf(seg,Math.min(n.end,end)),chanG[n.ch])}
-  return seg;
+function startAt(c0,s0){
+  seg={c0,s0,done:false};ni=noteIdx(s0);bi=beatIdx(s0);
+  // notes that started before s0 but are still sounding
+  for(const n of song.notes){if(n.start>=s0-1e-6)break;if(n.end>s0+0.02)voice(n,c0,ctxOf(n.end),chanG[n.ch])}
 }
 function pump(){
-  if(!playing)return;
-  const horizon=ctx.currentTime+0.3;
-  for(let guard=0;guard<16;guard++){
-    const seg=segs[segs.length-1];if(seg.done)return;
-    const end=limit(),hs=seg.s0+(horizon-seg.c0)*speed,upto=Math.min(hs,end);
-    while(ni<song.notes.length&&song.notes[ni].start<upto){const n=song.notes[ni++];voice(n,ctxOf(seg,n.start),ctxOf(seg,Math.min(n.end,end)),chanG[n.ch])}
-    while(bi<song.beats.length&&song.beats[bi].s<upto){const b=song.beats[bi++];if(metOn)click(ctxOf(seg,b.s),b.acc,metG)}
-    schedS=upto;
-    if(hs<end)return;
-    if(loopActive()){startSeg(ctxOf(seg,end),LA());continue}
-    seg.done=true;seg.endC=ctxOf(seg,end);return;
-  }
+  if(!playing||seg.done)return;
+  const end=song.duration,upto=Math.min(seg.s0+(ctx.currentTime+0.3-seg.c0)*speed,end);
+  while(ni<song.notes.length&&song.notes[ni].start<upto){const n=song.notes[ni++];voice(n,ctxOf(n.start),ctxOf(n.end),chanG[n.ch])}
+  while(bi<song.beats.length&&song.beats[bi].s<upto){const b=song.beats[bi++];if(metOn)click(ctxOf(b.s),b.acc,metG)}
+  if(upto>=end){seg.done=true;seg.endC=ctxOf(end)}
 }
 async function play(countIn){
   if(!song||playing||starting)return;
@@ -263,7 +247,6 @@ async function play(countIn){
     if(inst==="piano"&&!pianoBufs){$("info").textContent="Loading piano…";await loadPiano();showInfo()}
   }catch(e){$("info").textContent="Couldn't load piano: "+e.message;starting=false;return}
   starting=false;
-  if(loopActive()&&(offset<LA()-1e-6||offset>=LB()-1e-6))offset=LA();
   if(offset>=song.duration-1e-6)offset=0;
   curOut=ctx.createGain();curOut.connect(master);chanG={};
   for(const c of laneChans()){const g=ctx.createGain();g.gain.value=audible(c)?1:0;g.connect(curOut);chanG[c]=g}
@@ -272,7 +255,7 @@ async function play(countIn){
   if(countIn&&cinOn){const b=song.bars[barAt(offset)];
     for(let i=0;i<b.num;i++){const t=c0+i*b.beat/speed;click(t,i===0,metG);countMarks.push(t)}
     c0+=b.num*b.beat/speed}
-  segs=[];startSeg(c0,offset);
+  startAt(c0,offset);
   playing=true;playBtn.textContent="❚❚ Pause";pump();timer=setInterval(pump,25);tick();
 }
 function halt(){
@@ -282,14 +265,12 @@ function halt(){
 }
 function pos(){
   if(!playing)return offset;
-  const now=ctx.currentTime;if(now<segs[0].c0)return segs[0].s0;
-  let seg=segs[0];for(const s of segs)if(s.c0<=now)seg=s;
+  const now=ctx.currentTime;if(now<seg.c0)return seg.s0;
   return Math.min(seg.s0+(now-seg.c0)*speed,song.duration);
 }
 function tick(){
   draw();
-  const last=segs[segs.length-1];
-  if(playing&&last&&last.done&&ctx.currentTime>=last.endC){halt();offset=0;draw();return}
+  if(playing&&seg.done&&ctx.currentTime>=seg.endC){halt();offset=0;draw();return}
   raf=requestAnimationFrame(tick);
 }
 function restart(fn){const was=playing,t=pos();if(was)halt();if(fn)fn();offset=t;if(was)play(false);else draw()}
@@ -298,6 +279,7 @@ function restart(fn){const was=playing,t=pos();if(was)halt();if(fn)fn();offset=t
 const NAMES_S=["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"],NAMES_F=["C","D♭","D","E♭","E","F","G♭","G","A♭","A","B♭","B"];
 const noteName=n=>(song&&song.flats?NAMES_F:NAMES_S)[n%12]+(Math.floor(n/12)-1);
 let laneNotes={};
+// the lane's note sounding at s, else its next note (else its first note, once the song is past its last one)
 function nextNote(c,s){const ns=laneNotes[c];if(!ns||!ns.length)return null;for(const n of ns)if(n.end>s+0.01)return n;return ns[0]}
 let prevOut=null;
 async function preview(list){
@@ -310,66 +292,71 @@ async function preview(list){
   sorted.forEach((n,i)=>voice({n:n.n,v:100},t+i*step,end,out));
 }
 
-// ---------- Lanes ----------
+// ---------- Lanes (controls live in the roll's left panel) ----------
 let mute=new Set(),solo=new Set();
 const laneChans=()=>song?[...new Set(song.notes.map(n=>n.ch))].sort((a,b)=>a-b):[];
 const audible=c=>solo.size?solo.has(c):!mute.has(c);
 function applyLanes(){
   if(ctx)for(const c in chanG){chanG[c].gain.setTargetAtTime(audible(+c)?1:0,ctx.currentTime,0.015)}
-  document.querySelectorAll(".lane").forEach(el=>{const c=+el.dataset.ch;
-    el.classList.toggle("off",!audible(c));el.querySelector(".m").classList.toggle("on",mute.has(c));el.querySelector(".s").classList.toggle("on",solo.has(c))});
+  document.querySelectorAll(".lane").forEach(el=>{const c=+el.dataset.ch,s=el.querySelector(".s"),m=el.querySelector(".m");
+    el.classList.toggle("off",!audible(c));
+    m.classList.toggle("on",mute.has(c));m.setAttribute("aria-pressed",mute.has(c));
+    s.classList.toggle("on",solo.has(c));s.setAttribute("aria-pressed",solo.has(c))});
   draw();
 }
 function buildLanes(){
-  mute.clear();solo.clear();laneNotes={};const box=$("lanes");box.innerHTML="";
-  for(const c of laneChans()){const ns=song.notes.filter(n=>n.ch===c);laneNotes[c]=ns;
+  mute.clear();solo.clear();laneNotes={};lanesEl.innerHTML="";
+  laneChans().forEach((c,i)=>{laneNotes[c]=song.notes.filter(n=>n.ch===c);
     const el=document.createElement("div");el.className="lane";el.dataset.ch=c;
-    el.innerHTML=`<span class="sw" style="background:${COLORS[c%8]}"></span><span class="nm"></span><button class="pt"></button><button class="s">S</button><button class="m">M</button>`;
-    el.querySelector(".nm").textContent="Lane "+(box.children.length+1);
-    const sm=document.createElement("small");sm.textContent=`Ch ${c+1} · ${ns.length} notes`;el.querySelector(".nm").appendChild(sm);
+    el.innerHTML=`<span class="sw" style="background:${COLORS[c%8]}"></span><button class="s" aria-pressed="false">S</button><button class="m" aria-pressed="false">M</button><button class="pt"></button>`;
+    el.querySelector(".s").setAttribute("aria-label",`Solo lane ${i+1}`);
+    el.querySelector(".m").setAttribute("aria-label",`Mute lane ${i+1}`);
+    el.querySelector(".pt").title=`Lane ${i+1}: play current or next note`;
     el.querySelector(".pt").onclick=()=>{const n=nextNote(c,pos());if(n)preview([n])};
     el.querySelector(".s").onclick=()=>{solo.has(c)?solo.delete(c):solo.add(c);applyLanes()};
     el.querySelector(".m").onclick=()=>{mute.has(c)?mute.delete(c):mute.add(c);applyLanes()};
-    box.appendChild(el)}
+    lanesEl.appendChild(el)});
+  const k=document.createElement("div");k.className="lnc";
+  k.innerHTML='<button id="pall">♪ All</button><button id="reset">Reset</button>';
+  lanesEl.appendChild(k);
+  $("pall").onclick=()=>{const t=pos();preview(laneChans().filter(audible).map(c=>nextNote(c,t)).filter(Boolean))};
+  $("reset").onclick=()=>{mute.clear();solo.clear();applyLanes()};
+  measure();
 }
 
 // ---------- UI ----------
-const $=id=>document.getElementById(id);const playBtn=$("play"),vol=$("vol"),cv=$("roll"),g2=cv.getContext("2d");
+const $=id=>document.getElementById(id);const playBtn=$("play"),cv=$("roll"),g2=cv.getContext("2d"),lanesEl=$("lanes");
 const fmt=s=>Math.floor(s/60)+":"+String(Math.floor(s%60)).padStart(2,"0");
 const COLORS=["#4fb3ff","#ffb84f","#7be08a","#ff6f91","#c49bff","#5ee0d8","#ffd84f","#ff8f5e"];
-let lo=0,hi=127;
+const AHEAD=4.5; // seconds of music shown right of the playhead
+let lo=0,hi=127,laneW=0; // laneW: width of the lane panel = playhead x
+function measure(){laneW=lanesEl.offsetWidth}
 function draw(){
-  const dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;
-  if(cv.width!==W*dpr){cv.width=W*dpr;cv.height=H*dpr}
+  const dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight,bw=Math.round(W*dpr),bh=Math.round(H*dpr);
+  if(cv.width!==bw||cv.height!==bh){cv.width=bw;cv.height=bh}
   g2.setTransform(dpr,0,0,dpr,0,0);g2.clearRect(0,0,W,H);
   if(!song){g2.fillStyle="#8a929b";g2.font="600 17px -apple-system,system-ui,sans-serif";g2.textAlign="center";g2.textBaseline="middle";
     g2.fillText("Tap Open .mid",W/2,H/2);g2.textAlign="left";g2.textBaseline="alphabetic";return}
-  const t=pos(),win=6,x0=t-win*0.25,rh=H/(hi-lo+1),px=W/win;
-  if(loopActive()){g2.fillStyle="rgba(79,179,255,.10)";g2.fillRect((LA()-x0)*px,0,(LB()-LA())*px,H)}
+  const t=pos(),phx=laneW,px=(W-phx)/AHEAD,x0=t-phx/px,win=W/px,rh=H/(hi-lo+1);
   g2.font="10px -apple-system,system-ui,sans-serif";
   song.bars.forEach((b,i)=>{const x=(b.s-x0)*px;if(x<-40||x>W)return;g2.fillStyle="rgba(255,255,255,.09)";g2.fillRect(x,0,1,H);g2.fillStyle="rgba(255,255,255,.35)";g2.fillText(i+1,x+3,11)});
   for(const n of song.notes){if(n.end<x0||n.start>x0+win)continue;
     const on=t>=n.start&&t<n.end;g2.fillStyle=COLORS[n.ch%8];g2.globalAlpha=audible(n.ch)?(on?1:0.45):0.08;
     g2.fillRect((n.start-x0)*px,H-(n.n-lo+1)*rh,Math.max(2,(n.end-n.start)*px-1),Math.max(2,rh-1))}
-  g2.globalAlpha=1;g2.fillStyle="#fff";g2.fillRect(win*0.25*px,0,1.5,H);
-  if(playing&&ctx&&countMarks.length&&ctx.currentTime<segs[0].c0){let k=0;countMarks.forEach((m,i)=>{if(ctx.currentTime>=m)k=i+1});
-    if(k){g2.fillStyle="rgba(255,255,255,.9)";g2.font="bold 64px -apple-system,system-ui,sans-serif";g2.textAlign="center";g2.fillText(k,W/2,H/2+22);g2.textAlign="left"}}
+  g2.globalAlpha=1;g2.fillStyle="#fff";g2.fillRect(phx,0,1.5,H);
+  if(playing&&ctx&&countMarks.length&&ctx.currentTime<seg.c0){let k=0;countMarks.forEach((m,i)=>{if(ctx.currentTime>=m)k=i+1});
+    if(k){g2.fillStyle="rgba(255,255,255,.9)";g2.font="bold 64px -apple-system,system-ui,sans-serif";g2.textAlign="center";g2.fillText(k,(phx+W)/2,H/2+22);g2.textAlign="left"}}
   $("fill").style.width=(t/song.duration*100)+"%";$("cur").textContent=fmt(t/speed);
   $("barn").textContent="Bar "+(barAt(t)+1)+" / "+song.bars.length;
-  const lr=$("loopr");if(loopActive()){lr.style.display="block";lr.style.left=(LA()/song.duration*100)+"%";lr.style.width=((LB()-LA())/song.duration*100)+"%"}else lr.style.display="none";
-  document.querySelectorAll(".lane").forEach(el=>{const n=nextNote(+el.dataset.ch,t),b=el.querySelector(".pt"),txt=n?"♪ "+noteName(n.n):"–";if(b.textContent!==txt)b.textContent=txt});
+  document.querySelectorAll(".lane").forEach(el=>{const n=nextNote(+el.dataset.ch,t),b=el.querySelector(".pt"),txt=n?noteName(n.n):"–";if(b.textContent!==txt)b.textContent=txt});
 }
 function showInfo(){if(!song)return;const chans=laneChans().length;$("info").textContent=`${song.notes.length} notes · ${chans} lane${chans>1?"s":""} · ${song.bars.length} bars`}
-function loopLabel(){
-  $("loopt").classList.toggle("on",loopOn);
-  $("loopl").textContent=loopActive()?(loopA===loopB?`Bar ${loopA+1}`:`Bars ${loopA+1}–${loopB+1}`):"Loop off";
-}
 function load(buf,name){
-  try{halt();song=parseMidi(buf);offset=0;loopOn=false;loopA=loopB=null;$("title").textContent=name;
+  try{halt();song=parseMidi(buf);offset=0;$("title").textContent=name;
     lo=127;hi=0;for(const n of song.notes){lo=Math.min(lo,n.n);hi=Math.max(hi,n.n)}lo-=2;hi+=2;
-    $("dur").textContent=fmt(song.duration/speed);buildLanes();showInfo();loopLabel();draw();
+    $("dur").textContent=fmt(song.duration/speed);buildLanes();showInfo();
   }catch(e){$("info").textContent="Couldn't read file: "+e.message}
-  setReady(!!song);
+  setReady(!!song);draw();
 }
 // grey out + disable every control except Open .mid until a song is loaded
 function setReady(on){
@@ -378,24 +365,18 @@ function setReady(on){
 }
 cv.onclick=()=>{if(!song)$("file").click()};
 playBtn.onclick=()=>{if(playing){offset=pos();halt();draw()}else play(true)};
-$("stop").onclick=()=>{halt();offset=loopActive()?LA():0;draw()};
+$("stop").onclick=()=>{halt();offset=0;draw()};
 $("file").onchange=e=>{const f=e.target.files[0];if(f)f.arrayBuffer().then(b=>load(b,f.name))};
 $("inst").onchange=e=>{const v=e.target.value;if(v==="piano"){ensureCtx();loadPiano().catch(()=>{})}restart(()=>{inst=v})};
-$("reset").onclick=()=>{mute.clear();solo.clear();applyLanes()};
-$("pall").onclick=()=>{const t=pos();preview(laneChans().filter(audible).map(c=>nextNote(c,t)).filter(Boolean))};
 $("met").onclick=e=>{metOn=!metOn;e.currentTarget.classList.toggle("on",metOn)};
 $("cin").onclick=e=>{cinOn=!cinOn;e.currentTarget.classList.toggle("on",cinOn)};
-$("loopt").onclick=()=>{if(!song)return;restart(()=>{loopOn=!loopOn;if(loopOn&&loopA==null){loopA=0;loopB=song.bars.length-1}});loopLabel();draw()};
-$("seta").onclick=()=>{if(!song)return;const b=barAt(pos());restart(()=>{loopA=b;if(loopB==null||loopB<b)loopB=b;loopOn=true});loopLabel();draw()};
-$("setb").onclick=()=>{if(!song)return;const b=barAt(pos());restart(()=>{loopB=b;if(loopA==null||loopA>b)loopA=b;loopOn=true});loopLabel();draw()};
-vol.oninput=()=>{if(master)master.gain.value=+vol.value};
 $("spd").oninput=e=>{restart(()=>{speed=+e.target.value});$("spdv").textContent=speed.toFixed(2)+"×";if(song)$("dur").textContent=fmt(song.duration/speed)};
 const bar=$("bar");
 function seek(e){if(!song)return;const r=bar.getBoundingClientRect();const f=Math.min(1,Math.max(0,(e.clientX-r.left)/r.width));const was=playing;if(was)halt();offset=f*song.duration;if(was)play(false);else draw()}
 bar.addEventListener("pointerdown",seek);
-window.addEventListener("resize",draw);
+window.addEventListener("resize",()=>{measure();draw()});
 if(EMBED){const raw=atob(EMBED),u=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)u[i]=raw.charCodeAt(i);load(u.buffer,EMBED_NAME)}
-else{$("info").textContent="Open a .mid file to start.";loopLabel();setReady(false);draw()}
+else{$("info").textContent="Open a .mid file to start.";setReady(false);draw()}
 </script>
 </body>
 </html>
