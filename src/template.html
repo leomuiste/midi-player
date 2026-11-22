@@ -418,9 +418,9 @@ $("met").onclick=e=>{metOn=!metOn;e.currentTarget.classList.toggle("on",metOn)};
 $("cin").onclick=e=>{cinOn=!cinOn;e.currentTarget.classList.toggle("on",cinOn)};
 
 // ---------- Tempo: − [BPM] + ----------
-// Tap = ±1 BPM. Hold = repeat after TEMPO_DELAY, every TEMPO_REPEAT ms (~3.6 per second).
+// Tap = ±1 BPM. Hold = repeat after TEMPO_DELAY, every TEMPO_REPEAT ms (~5.3 per second).
 // While held, only the number changes; the new tempo is applied on release, so playback isn't restarted on every step.
-const TEMPO_DELAY=450,TEMPO_REPEAT=280;
+const TEMPO_DELAY=450,TEMPO_REPEAT=187;
 let bpm=0,hold=null; // bpm: selected tempo; speed = bpm / song.bpm (exactly 1 at the rounded original)
 const origBpm=()=>Math.round(song.bpm);
 function tempoLabel(){$("bpm").innerHTML=song?`${bpm}<small>BPM</small>`:"–"}

@@ -231,8 +231,8 @@ async def main():
         await pg.wait_for_timeout(2000)
         mid = await pg.evaluate("[bpm,speed]")
         await pg.mouse.up()
-        steps = mid[0] - orig  # expected: 1 at press + 1 at 450 ms + every 280 ms after = 7 in 2 s
-        check("hold + repeats at ~3-4 per second", 6 <= steps <= 8, f"{steps} steps in 2.0 s")
+        steps = mid[0] - orig  # expected: 1 at press + 1 at 450 ms + every 187 ms after = 10 in 2 s
+        check("hold + repeats at ~5 per second", 9 <= steps <= 11, f"{steps} steps in 2.0 s")
         check("while held, only the number changes; speed applies on release",
               mid[1] == 1 and abs(await pg.evaluate("speed") - mid[0] / await pg.evaluate("song.bpm")) < 1e-9)
         await pg.click("#bpm")
