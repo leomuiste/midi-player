@@ -262,24 +262,42 @@ function click(t,acc,out){
   o.connect(g).connect(out);o.start(t);o.stop(t+0.06);
 }
 
+// ---------- Unison: one voice per pitch ----------
+// Notes of the same pitch that start together (within UNISON_TOL s) in several lanes are played as ONE voice.
+// Layering identical voices sounds rough (phasing, clashing vibrato) and makes unisons louder.
+// Groups are built once per song; which members are audible is decided when a group is scheduled.
+const UNISON_TOL=0.03;
+function groupUnison(notes){const gs=[],last=new Map(); // notes are sorted by start
+  for(const n of notes){const g=last.get(n.n);
+    if(g&&n.start-g.start<UNISON_TOL)g.members.push(n);else{const ng={start:n.start,n:n.n,members:[n]};gs.push(ng);last.set(n.n,ng)}}
+  return gs}
+
 // ---------- Transport (look-ahead scheduler) ----------
 // seg maps ctx time <-> song time for the current run: song time s plays at ctx time seg.c0+(s-seg.s0)/speed
-let song,offset=0,playing=false,starting=false,raf,timer,speed=1,curOut,metG,chanG={};
+// live: scheduled voices {g: GainNode, members, end}; a voice's gain is 1 while any of its lanes is audible (solo/mute act instantly)
+let song,offset=0,playing=false,starting=false,raf,timer,speed=1,curOut,metG,live=[];
 let seg=null,ni=0,bi=0,countMarks=[];
 let metOn=false,cinOn=false;
 function barAt(s){const b=song.bars;let i=0;while(i+1<b.length&&b[i+1].s<=s+1e-6)i++;return i}
 const ctxOf=s=>seg.c0+(s-seg.s0)/speed;
-function noteIdx(s){let i=0;while(i<song.notes.length&&song.notes[i].start<s-1e-6)i++;return i}
+function groupIdx(s){let i=0;while(i<song.groups.length&&song.groups[i].start<s-1e-6)i++;return i}
 function beatIdx(s){let i=0;while(i<song.beats.length&&song.beats[i].s<s-1e-6)i++;return i}
+// lasts as long as the longest audible member (or the longest member if none is audible now, so unmuting mid-note works)
+function groupEnd(g){const a=g.members.filter(m=>audible(m.ch));return Math.max(...(a.length?a:g.members).map(m=>m.end))}
+function playGroup(g,t0,end){
+  const mg=ctx.createGain();mg.gain.value=g.members.some(m=>audible(m.ch))?1:0;mg.connect(curOut);
+  const t1=ctxOf(end);voice(g,t0,t1,mg);
+  live.push({g:mg,members:g.members,end:t1+1});if(live.length>64)live=live.filter(v=>v.end>ctx.currentTime);
+}
 function startAt(c0,s0){
-  seg={c0,s0,done:false};ni=noteIdx(s0);bi=beatIdx(s0);
-  // notes that started before s0 but are still sounding
-  for(const n of song.notes){if(n.start>=s0-1e-6)break;if(n.end>s0+0.02)voice(n,c0,ctxOf(n.end),chanG[n.ch])}
+  seg={c0,s0,done:false};ni=groupIdx(s0);bi=beatIdx(s0);live=[];
+  // groups that started before s0 but are still sounding
+  for(const g of song.groups){if(g.start>=s0-1e-6)break;const e=groupEnd(g);if(e>s0+0.02)playGroup(g,c0,e)}
 }
 function pump(){
   if(!playing||seg.done)return;
   const end=song.duration,upto=Math.min(seg.s0+(ctx.currentTime+0.3-seg.c0)*speed,end);
-  while(ni<song.notes.length&&song.notes[ni].start<upto){const n=song.notes[ni++];voice(n,ctxOf(n.start),ctxOf(n.end),chanG[n.ch])}
+  while(ni<song.groups.length&&song.groups[ni].start<upto){const g=song.groups[ni++];playGroup(g,ctxOf(g.start),groupEnd(g))}
   while(bi<song.beats.length&&song.beats[bi].s<upto){const b=song.beats[bi++];if(metOn)click(ctxOf(b.s),b.acc,metG)}
   if(upto>=end){seg.done=true;seg.endC=ctxOf(end)}
 }
@@ -292,8 +310,7 @@ async function play(countIn){
   }catch(e){$("info").textContent="Couldn't load piano: "+e.message;starting=false;return}
   starting=false;
   if(offset>=song.duration-1e-6)offset=0;
-  curOut=ctx.createGain();curOut.connect(master);chanG={};
-  for(const c of laneChans()){const g=ctx.createGain();g.gain.value=audible(c)?1:0;g.connect(curOut);chanG[c]=g}
+  curOut=ctx.createGain();curOut.connect(master);
   metG=ctx.createGain();metG.gain.value=0.45;metG.connect(curOut);
   let c0=ctx.currentTime+0.08;countMarks=[];
   if(countIn&&cinOn){const b=song.bars[barAt(offset)];
@@ -332,7 +349,8 @@ async function preview(list){
   if(inst==="piano"&&!pianoBufs){try{$("info").textContent="Loading piano…";await loadPiano();showInfo()}catch(e){return}}
   if(prevOut){const o=prevOut;o.gain.setTargetAtTime(0,ctx.currentTime,0.02);setTimeout(()=>o.disconnect(),200)}
   const out=ctx.createGain();out.connect(master);prevOut=out;
-  const sorted=[...list].sort((a,b)=>a.n-b.n),t=ctx.currentTime+0.03,step=sorted.length>1?0.4:0,end=t+sorted.length*step+1.6;
+  // a pitch shared by several lanes plays once
+  const seen=new Set(),sorted=list.filter(n=>!seen.has(n.n)&&seen.add(n.n)).sort((a,b)=>a.n-b.n),t=ctx.currentTime+0.03,step=sorted.length>1?0.4:0,end=t+sorted.length*step+1.6;
   sorted.forEach((n,i)=>voice({n:n.n,v:100},t+i*step,end,out));
 }
 
@@ -341,7 +359,8 @@ let mute=new Set(),solo=new Set();
 const laneChans=()=>song?[...new Set(song.notes.map(n=>n.ch))].sort((a,b)=>a-b):[];
 const audible=c=>solo.size?solo.has(c):!mute.has(c);
 function applyLanes(){
-  if(ctx)for(const c in chanG){chanG[c].gain.setTargetAtTime(audible(+c)?1:0,ctx.currentTime,0.015)}
+  if(ctx){const now=ctx.currentTime;live=live.filter(v=>v.end>now);
+    for(const v of live)v.g.gain.setTargetAtTime(v.members.some(m=>audible(m.ch))?1:0,now,0.015)}
   document.querySelectorAll(".lane").forEach(el=>{const c=+el.dataset.ch,s=el.querySelector(".s"),m=el.querySelector(".m");
     el.classList.toggle("off",!audible(c));
     m.classList.toggle("on",mute.has(c));m.setAttribute("aria-pressed",mute.has(c));
@@ -399,7 +418,7 @@ function draw(){
 function showInfo(){if(!song)return;const chans=laneChans().length;
   $("info").textContent=`${origBpm()} BPM${song.tempoChanges?" (changes)":""} · ${song.notes.length} notes · ${chans} lane${chans>1?"s":""} · ${song.bars.length} bars`}
 function load(buf,name){
-  try{halt();song=parseMidi(buf);offset=0;$("title").textContent=name;speed=1;bpm=origBpm();tempoLabel();
+  try{halt();song=parseMidi(buf);song.groups=groupUnison(song.notes);offset=0;$("title").textContent=name;speed=1;bpm=origBpm();tempoLabel();
     lo=127;hi=0;for(const n of song.notes){lo=Math.min(lo,n.n);hi=Math.max(hi,n.n)}lo-=2;hi+=2;
     $("dur").textContent=fmt(song.duration/speed);buildLanes();showInfo();
   }catch(e){$("info").textContent="Couldn't read file: "+e.message}
@@ -418,9 +437,9 @@ $("met").onclick=e=>{metOn=!metOn;e.currentTarget.classList.toggle("on",metOn)};
 $("cin").onclick=e=>{cinOn=!cinOn;e.currentTarget.classList.toggle("on",cinOn)};
 
 // ---------- Tempo: − [BPM] + ----------
-// Tap = ±1 BPM. Hold = repeat after TEMPO_DELAY, every TEMPO_REPEAT ms (~5.3 per second).
+// Tap = ±1 BPM. Hold = repeat after TEMPO_DELAY, every TEMPO_REPEAT ms (~6.5 per second).
 // While held, only the number changes; the new tempo is applied on release, so playback isn't restarted on every step.
-const TEMPO_DELAY=450,TEMPO_REPEAT=187;
+const TEMPO_DELAY=450,TEMPO_REPEAT=154;
 let bpm=0,hold=null; // bpm: selected tempo; speed = bpm / song.bpm (exactly 1 at the rounded original)
 const origBpm=()=>Math.round(song.bpm);
 function tempoLabel(){$("bpm").innerHTML=song?`${bpm}<small>BPM</small>`:"–"}

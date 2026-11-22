@@ -18,9 +18,10 @@ def check(name, ok, detail=""):
     print(("PASS " if ok else "FAIL ") + name + (f"  ({detail})" if detail else ""))
     if not ok: fails.append(name)
 
-# Builds a type-0 MIDI file in the page with nch channels, 8 notes each (synthetic lane-count tests).
-MK_MIDI = """nch=>{const vlq=v=>{const o=[v&127];while(v>>=7)o.unshift((v&127)|128);return o};
-  const ev=[];for(let c=0;c<nch;c++)for(let k=0;k<8;k++){const st=k*480,n=48+c*4+(k%3);ev.push([st,0x90|c,n,90],[st+400,0x80|c,n,0])}
+# Builds a type-0 MIDI file in the page with nch channels, 8 notes each, one every 0.5 s (synthetic lane-count tests).
+# uni=true: every channel plays the same pitches at the same times (unison).
+MK_MIDI = """(nch,uni)=>{const vlq=v=>{const o=[v&127];while(v>>=7)o.unshift((v&127)|128);return o};
+  const ev=[];for(let c=0;c<nch;c++)for(let k=0;k<8;k++){const st=k*480,n=uni?60+(k%3):48+c*4+(k%3);ev.push([st,0x90|c,n,90],[st+400,0x80|c,n,0])}
   ev.sort((a,b)=>a[0]-b[0]||a[3]-b[3]);const t=[];let last=0;for(const e of ev){t.push(...vlq(e[0]-last),e[1],e[2],e[3]);last=e[0]}
   t.push(0,0xFF,0x2F,0);const L=t.length;
   return new Uint8Array([0x4D,0x54,0x68,0x64,0,0,0,6,0,0,0,1,1,0xE0,0x4D,0x54,0x72,0x6B,L>>>24&255,L>>16&255,L>>8&255,L&255,...t]).buffer}"""
@@ -140,22 +141,27 @@ async def main():
         # --- solo / mute while playing ---
         await pg.select_option("#inst", "synth")
         await pg.evaluate("offset=0"); await pg.click("#play"); await pg.wait_for_timeout(300)
-        state = """()=>laneChans().map(c=>({c,g:chanG[c].gain.value,off:document.querySelector(`.lane[data-ch="${c}"]`).classList.contains('off'),
-          s:document.querySelector(`.lane[data-ch="${c}"] .s`).classList.contains('on'),m:document.querySelector(`.lane[data-ch="${c}"] .m`).classList.contains('on')}))"""
+        # lanes: per-lane UI state; voices: every live voice's gain must be 1 iff any of its lanes is audible
+        state = """()=>{const now=ctx.currentTime,lv=live.filter(v=>v.end>now);
+          return{lanes:laneChans().map(c=>({c,aud:audible(c),off:document.querySelector(`.lane[data-ch="${c}"]`).classList.contains('off'),
+            s:document.querySelector(`.lane[data-ch="${c}"] .s`).classList.contains('on'),m:document.querySelector(`.lane[data-ch="${c}"] .m`).classList.contains('on')})),
+          nLive:lv.length,wrong:lv.filter(v=>Math.abs(v.g.gain.value-(v.members.some(m=>audible(m.ch))?1:0))>0.05).length}}"""
         await pg.click(".lane:nth-child(1) .s"); await pg.wait_for_timeout(300)
-        st = await pg.evaluate(state)
-        check("solo lane 1: only lane 1 audible, others dimmed", st[0]["g"] > .95 and st[0]["s"] and not st[0]["off"]
-              and all(x["g"] < .05 and x["off"] for x in st[1:]), str([(round(x["g"], 2), x["off"]) for x in st]))
+        st = await pg.evaluate(state); L = st["lanes"]
+        check("solo lane 1: only lane 1 audible, others dimmed, voice gains follow", L[0]["aud"] and L[0]["s"] and not L[0]["off"]
+              and all(not x["aud"] and x["off"] for x in L[1:]) and st["nLive"] > 0 and st["wrong"] == 0,
+              f"{[(x['aud'], x['off']) for x in L]}, {st['nLive']} live voices, {st['wrong']} wrong gains")
         await pg.screenshot(path=str(OUT / "out_solo.png"), clip={"x": 0, "y": 0, "width": 390, "height": 420})
         await pg.click(".lane:nth-child(1) .s"); await pg.click(".lane:nth-child(2) .m"); await pg.wait_for_timeout(300)
-        st = await pg.evaluate(state)
-        check("mute lane 2: lane 2 silent and dimmed, others audible", st[1]["g"] < .05 and st[1]["m"] and st[1]["off"]
-              and all(x["g"] > .95 and not x["off"] for i, x in enumerate(st) if i != 1), str([(round(x["g"], 2), x["off"]) for x in st]))
+        st = await pg.evaluate(state); L = st["lanes"]
+        check("mute lane 2: lane 2 silent and dimmed, others audible, voice gains follow", not L[1]["aud"] and L[1]["m"] and L[1]["off"]
+              and all(x["aud"] and not x["off"] for i, x in enumerate(L) if i != 1) and st["nLive"] > 0 and st["wrong"] == 0,
+              f"{[(x['aud'], x['off']) for x in L]}, {st['nLive']} live voices, {st['wrong']} wrong gains")
         await pg.click("#play")
         await pg.screenshot(path=str(OUT / "out_390.png"), full_page=True)
         await pg.click("#reset")
         st = await pg.evaluate(state)
-        check("Reset clears solo/mute", not any(x["off"] or x["s"] or x["m"] for x in st))
+        check("Reset clears solo/mute", not any(x["off"] or x["s"] or x["m"] for x in st["lanes"]))
 
         # --- end of song stops playback ---
         await pg.evaluate("(()=>{offset=song.duration-1})()"); await pg.click("#play"); await pg.wait_for_timeout(2500)
@@ -231,8 +237,8 @@ async def main():
         await pg.wait_for_timeout(2000)
         mid = await pg.evaluate("[bpm,speed]")
         await pg.mouse.up()
-        steps = mid[0] - orig  # expected: 1 at press + 1 at 450 ms + every 187 ms after = 10 in 2 s
-        check("hold + repeats at ~5 per second", 9 <= steps <= 11, f"{steps} steps in 2.0 s")
+        steps = mid[0] - orig  # expected: 1 at press + 1 at 450 ms + every 154 ms after = 12 in 2 s
+        check("hold + repeats at ~6.5 per second", 10 <= steps <= 13, f"{steps} steps in 2.0 s")
         check("while held, only the number changes; speed applies on release",
               mid[1] == 1 and abs(await pg.evaluate("speed") - mid[0] / await pg.evaluate("song.bpm")) < 1e-9)
         await pg.click("#bpm")
@@ -241,6 +247,24 @@ async def main():
         await pg.evaluate("bpm=Math.ceil(song.bpm*0.5);tempoLabel()"); await pg.click("#tdn")
         check("tempo stops at half and 1.5 times the original", await pg.evaluate("bpm===Math.ceil(song.bpm*0.5)"))
         await pg.click("#bpm")
+
+        # --- unison: the same pitch starting together in several lanes plays as ONE voice ---
+        await pg.evaluate(f"""()=>{{load(({MK_MIDI})(4,true),'unison-4.mid');window.calls=[];window.origVoice=voice;
+          voice=(n,t0,t1,out)=>{{calls.push([n.n,+t0.toFixed(3),out]);origVoice(n,t0,t1,out)}}}}""")
+        await pg.click("#play"); await pg.wait_for_timeout(1300)
+        u = await pg.evaluate("""()=>{const keys=calls.map(c=>c[0]+'@'+c[1]);
+          return{calls:calls.length,unique:new Set(keys).size,groups:song.groups.length,notes:song.notes.length,
+            members:song.groups.map(g=>g.members.length)}}""")
+        check("unison: 4 lanes on the same note are grouped into one voice each", u["groups"] * 4 == u["notes"] and set(u["members"]) == {4}, str(u))
+        check("unison: each onset is played once, not 4 times", u["calls"] >= 2 and u["calls"] == u["unique"], f"{u['calls']} voices started for {u['calls']} onsets")
+        await pg.click(".lane:nth-child(1) .m"); await pg.wait_for_timeout(250)
+        st = await pg.evaluate(state)
+        check("unison: muting one of the lanes keeps the shared note sounding",
+              st["nLive"] > 0 and st["wrong"] == 0 and await pg.evaluate("live.filter(v=>v.end>ctx.currentTime).some(v=>v.g.gain.value>0.95)"))
+        await pg.click("#play"); await pg.click("#reset")
+        await pg.evaluate("calls.length=0"); await pg.click("#pall"); await pg.wait_for_timeout(100)
+        check("unison: ♪ All plays a shared pitch once", await pg.evaluate("calls.length") == 1, str(await pg.evaluate("calls.length")))
+        await pg.evaluate("()=>{voice=origVoice}")
 
         # --- drop a file on the roll ---
         d = await pg.evaluate(DROP, ["dropped-3-lanes.mid", "audio/midi", 3])
@@ -260,7 +284,8 @@ async def main():
         check("no JS errors", not errs, str(errs))
         await b.close()
 
-asyncio.run(main())
-if fails:
-    print(f"\n{len(fails)} check(s) failed"); sys.exit(1)
-print("\nall checks passed")
+if __name__ == "__main__":
+    asyncio.run(main())
+    if fails:
+        print(f"\n{len(fails)} check(s) failed"); sys.exit(1)
+    print("\nall checks passed")
