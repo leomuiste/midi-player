@@ -43,35 +43,39 @@ input[type=file]{display:none}
 .lane button.pt{width:auto;min-width:58px;padding:10px 8px;font-size:14px;font-variant-numeric:tabular-nums}
 .lanehd .btns{display:flex;gap:8px}
 .credit{color:#5d646c;font-size:11px;margin-top:8px}
+/* before a song is loaded: everything but Open .mid is greyed, blurred and inert */
+.ns{transition:opacity .25s,filter .25s}
+.nosong .ns{opacity:.3;filter:grayscale(1) blur(1px);pointer-events:none}
+.nosong canvas{cursor:pointer}
 </style>
 </head>
-<body>
+<body class="nosong">
 <main>
 <h1 id="title">MIDI Player</h1>
 <div id="info"></div>
 <canvas id="roll"></canvas>
-<div class="bar" id="bar"><div id="loopr"></div><i id="fill"></i></div>
-<div class="time"><span id="cur">0:00</span><span id="barn"></span><span id="dur">0:00</span></div>
+<div class="bar ns" id="bar"><div id="loopr"></div><i id="fill"></i></div>
+<div class="time ns"><span id="cur">0:00</span><span id="barn"></span><span id="dur">0:00</span></div>
 <div class="ctl">
-  <button id="play">▶ Play</button>
-  <button id="stop">■ Stop</button>
+  <button id="play" class="ns">▶ Play</button>
+  <button id="stop" class="ns">■ Stop</button>
   <label class="btn" for="file">Open .mid</label>
   <input type="file" id="file" accept=".mid,.midi,audio/midi,audio/x-midi">
 </div>
-<div class="ctl2">
+<div class="ctl2 ns">
   <button id="loopt" class="tog">⟳ Loop</button>
   <button id="seta">Set A</button>
   <button id="setb">Set B</button>
   <span id="loopl">Loop off</span>
 </div>
-<div class="ctl2">
+<div class="ctl2 ns">
   <button id="met" class="tog">Metronome</button>
   <button id="cin" class="tog">Count-in</button>
 </div>
-<div class="row">Volume <input type="range" id="vol" min="0" max="1" step="0.01" value="0.7"></div>
-<div class="row">Sound <select id="inst"><option value="synth">Synth</option><option value="piano">Piano</option><option value="organ">Organ</option><option value="choir">Choir "Ooh"</option></select></div>
-<div class="row">Speed <input type="range" id="spd" min="0.5" max="1.5" step="0.05" value="1"><span id="spdv">1.00×</span></div>
-<div class="lanehd"><span>Lanes · ♪ starting note · S solo · M mute</span><span class="btns"><button id="pall">♪ All</button><button id="reset">Reset</button></span></div>
+<div class="row ns">Volume <input type="range" id="vol" min="0" max="1" step="0.01" value="0.7"></div>
+<div class="row ns">Sound <select id="inst"><option value="synth">Synth</option><option value="piano">Piano</option><option value="organ">Organ</option><option value="choir">Choir "Ooh"</option></select></div>
+<div class="row ns">Speed <input type="range" id="spd" min="0.5" max="1.5" step="0.05" value="1"><span id="spdv">1.00×</span></div>
+<div class="lanehd ns"><span>Lanes · ♪ starting note · S solo · M mute</span><span class="btns"><button id="pall">♪ All</button><button id="reset">Reset</button></span></div>
 <div id="lanes"></div>
 <div class="hint">Set A / Set B loop whole bars at the play position. If there's no sound, flip the iPhone's silent switch off.</div>
 <div class="credit">Piano samples: Salamander Grand Piano by Alexander Holm, CC BY 3.0.</div>
@@ -337,7 +341,9 @@ let lo=0,hi=127;
 function draw(){
   const dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;
   if(cv.width!==W*dpr){cv.width=W*dpr;cv.height=H*dpr}
-  g2.setTransform(dpr,0,0,dpr,0,0);g2.clearRect(0,0,W,H);if(!song)return;
+  g2.setTransform(dpr,0,0,dpr,0,0);g2.clearRect(0,0,W,H);
+  if(!song){g2.fillStyle="#8a929b";g2.font="600 17px -apple-system,system-ui,sans-serif";g2.textAlign="center";g2.textBaseline="middle";
+    g2.fillText("Tap Open .mid",W/2,H/2);g2.textAlign="left";g2.textBaseline="alphabetic";return}
   const t=pos(),win=6,x0=t-win*0.25,rh=H/(hi-lo+1),px=W/win;
   if(loopActive()){g2.fillStyle="rgba(79,179,255,.10)";g2.fillRect((LA()-x0)*px,0,(LB()-LA())*px,H)}
   g2.font="10px -apple-system,system-ui,sans-serif";
@@ -363,7 +369,14 @@ function load(buf,name){
     lo=127;hi=0;for(const n of song.notes){lo=Math.min(lo,n.n);hi=Math.max(hi,n.n)}lo-=2;hi+=2;
     $("dur").textContent=fmt(song.duration/speed);buildLanes();showInfo();loopLabel();draw();
   }catch(e){$("info").textContent="Couldn't read file: "+e.message}
+  setReady(!!song);
 }
+// grey out + disable every control except Open .mid until a song is loaded
+function setReady(on){
+  document.body.classList.toggle("nosong",!on);
+  document.querySelectorAll(".ns button,.ns input,.ns select,button.ns").forEach(el=>el.disabled=!on);
+}
+cv.onclick=()=>{if(!song)$("file").click()};
 playBtn.onclick=()=>{if(playing){offset=pos();halt();draw()}else play(true)};
 $("stop").onclick=()=>{halt();offset=loopActive()?LA():0;draw()};
 $("file").onchange=e=>{const f=e.target.files[0];if(f)f.arrayBuffer().then(b=>load(b,f.name))};
@@ -382,7 +395,7 @@ function seek(e){if(!song)return;const r=bar.getBoundingClientRect();const f=Mat
 bar.addEventListener("pointerdown",seek);
 window.addEventListener("resize",draw);
 if(EMBED){const raw=atob(EMBED),u=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)u[i]=raw.charCodeAt(i);load(u.buffer,EMBED_NAME)}
-else{$("info").textContent="Open a .mid file to start.";loopLabel()}
+else{$("info").textContent="Open a .mid file to start.";loopLabel();setReady(false);draw()}
 </script>
 </body>
 </html>
