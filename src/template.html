@@ -24,6 +24,9 @@ input[type=file]{display:none}
 .roll canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:pan-y}
 body:not(.nosong) .roll canvas{cursor:grab}
 .roll.scrub canvas{cursor:grabbing}
+/* count-in number: centred on the page (= the roll's centre), above the lane panel */
+#cnt{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2;pointer-events:none;font:bold 64px -apple-system,system-ui,sans-serif;color:rgba(255,255,255,.92);text-shadow:0 2px 12px rgba(0,0,0,.6)}
+#cnt:empty{display:none}
 /* a file held over the roll */
 .roll.drop::after{content:"Drop to open";position:absolute;inset:0;z-index:2;display:flex;align-items:center;justify-content:center;background:#1c2a37;border:2px dashed var(--acc);border-radius:12px;font-weight:600;pointer-events:none}
 #lanes{position:relative;z-index:1;display:flex;flex-direction:column;gap:4px;padding:6px 6px 6px 6px;background:rgba(8,10,13,.55);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}
@@ -85,7 +88,7 @@ label.pick{position:absolute;inset:0;z-index:1;cursor:pointer;display:none}
   <button id="infob" class="ib" aria-label="Help and credits"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="7.6" r="1.4" fill="currentColor"/><path d="M12 11.2v6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
 </header>
 <div id="info"></div>
-<div class="roll"><canvas id="roll"></canvas><div id="lanes"></div><label class="pick" for="file" aria-label="Open a .mid file"></label></div>
+<div class="roll"><canvas id="roll"></canvas><div id="lanes"></div><div id="cnt" aria-hidden="true"></div><label class="pick" for="file" aria-label="Open a .mid file"></label></div>
 <div class="bar ns" id="bar"><i id="fill"></i></div>
 <div class="time ns"><span id="cur">0:00</span><span id="barn"></span><span id="dur">0:00</span></div>
 <div class="ctl">
@@ -409,8 +412,8 @@ function draw(){
     const on=t>=n.start&&t<n.end;g2.fillStyle=COLORS[n.ch%8];g2.globalAlpha=audible(n.ch)?(on?1:0.45):0.08;
     g2.fillRect((n.start-x0)*px,H-(n.n-lo+1)*rh,Math.max(2,(n.end-n.start)*px-1),Math.max(2,rh-1))}
   g2.globalAlpha=1;g2.fillStyle="#fff";g2.fillRect(phx,0,1.5,H);
-  if(playing&&ctx&&countMarks.length&&ctx.currentTime<seg.c0){let k=0;countMarks.forEach((m,i)=>{if(ctx.currentTime>=m)k=i+1});
-    if(k){g2.fillStyle="rgba(255,255,255,.9)";g2.font="bold 64px -apple-system,system-ui,sans-serif";g2.textAlign="center";g2.fillText(k,(phx+W)/2,H/2+22);g2.textAlign="left"}}
+  let k=0;if(playing&&ctx&&countMarks.length&&ctx.currentTime<seg.c0)countMarks.forEach((m,i)=>{if(ctx.currentTime>=m)k=i+1});
+  const cnt=$("cnt"),ct=k?String(k):"";if(cnt.textContent!==ct)cnt.textContent=ct;
   $("fill").style.width=(t/song.duration*100)+"%";$("cur").textContent=fmt(t/speed);
   $("barn").textContent="Bar "+(barAt(t)+1)+" / "+song.bars.length;
   document.querySelectorAll(".lane").forEach(el=>{const n=nextNote(+el.dataset.ch,t),b=el.querySelector(".pt"),txt=n?noteName(n.n):"–";if(b.textContent!==txt)b.textContent=txt});
@@ -437,9 +440,9 @@ $("met").onclick=e=>{metOn=!metOn;e.currentTarget.classList.toggle("on",metOn)};
 $("cin").onclick=e=>{cinOn=!cinOn;e.currentTarget.classList.toggle("on",cinOn)};
 
 // ---------- Tempo: − [BPM] + ----------
-// Tap = ±1 BPM. Hold = repeat after TEMPO_DELAY, every TEMPO_REPEAT ms (~6.5 per second).
+// Tap = ±1 BPM. Hold = repeat after TEMPO_DELAY, every TEMPO_REPEAT ms (8 per second).
 // While held, only the number changes; the new tempo is applied on release, so playback isn't restarted on every step.
-const TEMPO_DELAY=450,TEMPO_REPEAT=154;
+const TEMPO_DELAY=450,TEMPO_REPEAT=125;
 let bpm=0,hold=null; // bpm: selected tempo; speed = bpm / song.bpm (exactly 1 at the rounded original)
 const origBpm=()=>Math.round(song.bpm);
 function tempoLabel(){$("bpm").innerHTML=song?`${bpm}<small>BPM</small>`:"–"}

@@ -116,7 +116,12 @@ async def main():
         await pg.wait_for_timeout(1200)
         ci = await pg.evaluate("[countMarks.length, seg.c0-ctx.currentTime]")
         check("count-in clicks scheduled, music starts later", ci[0] >= 2 and ci[1] > 0, f"marks {ci[0]}, music in {ci[1]:.2f}s")
+        cn = await pg.evaluate("""()=>{const e=document.getElementById('cnt'),r=e.getBoundingClientRect(),l=document.getElementById('lanes').getBoundingClientRect();
+          return{txt:e.textContent,dx:(r.left+r.right)/2-document.documentElement.clientWidth/2,abovePanel:+getComputedStyle(e).zIndex>+getComputedStyle(document.getElementById('lanes')).zIndex}}""")
+        check("count-in number shows, centred on the page, above the lane panel", cn["txt"].isdigit() and abs(cn["dx"]) < 1 and cn["abovePanel"], str(cn))
         await pg.screenshot(path=str(OUT / "out_countin.png"), clip={"x": 0, "y": 0, "width": 390, "height": 400})
+        await pg.wait_for_timeout(int(ci[1] * 1000) + 300)
+        check("count-in number disappears when the music starts", await pg.evaluate("document.getElementById('cnt').textContent") == "")
         await pg.click("#play")  # pause
         await pg.click("#cin"); await pg.click("#met")
 
@@ -237,8 +242,8 @@ async def main():
         await pg.wait_for_timeout(2000)
         mid = await pg.evaluate("[bpm,speed]")
         await pg.mouse.up()
-        steps = mid[0] - orig  # expected: 1 at press + 1 at 450 ms + every 154 ms after = 12 in 2 s
-        check("hold + repeats at ~6.5 per second", 10 <= steps <= 13, f"{steps} steps in 2.0 s")
+        steps = mid[0] - orig  # expected: 1 at press + 1 at 450 ms + every 125 ms after = 14 in 2 s
+        check("hold + repeats at 8 per second", 12 <= steps <= 15, f"{steps} steps in 2.0 s")
         check("while held, only the number changes; speed applies on release",
               mid[1] == 1 and abs(await pg.evaluate("speed") - mid[0] / await pg.evaluate("song.bpm")) < 1e-9)
         await pg.click("#bpm")
