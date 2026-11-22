@@ -87,6 +87,9 @@ async def main():
             check("no-song: controls disabled", n > 0 and await pg.evaluate('document.body.classList.contains("nosong")'), f"{n} disabled")
             await pg.screenshot(path=str(OUT / "out_nosong.png"), full_page=True)
             check("no-song: header Open .mid hidden", not await pg.locator("label.open").is_visible())
+            check("no-song: info button visible and usable, tempo buttons disabled",
+                  await pg.locator("#infob").is_enabled() and await pg.locator("#infob").is_visible()
+                  and await pg.evaluate('["tdn","tup","bpm"].every(id=>document.getElementById(id).disabled)'))
             async with pg.expect_file_chooser(timeout=3000) as fc:
                 await pg.click(".roll")
             await (await fc.value).set_files({"name": "picked-2-lanes.mid", "mimeType": "audio/midi", "buffer": mk_midi(2)})
@@ -187,6 +190,47 @@ async def main():
         check("drag while playing pauses, then resumes from the new spot",
               during is False and after[0] and after[1] > before + 100 / pxs * 0.8, f"before {before:.2f}, after {after[1]:.2f}")
         await pg.click("#play")
+
+        # --- header: Open .mid left of the always-visible info button; info window holds help + piano credit ---
+        hb = await pg.evaluate("""()=>{const o=document.querySelector('label.open').getBoundingClientRect(),i=document.getElementById('infob').getBoundingClientRect(),
+          m=document.querySelector('main').getBoundingClientRect();return[o.right<=i.left,Math.round(m.right-i.right),Math.round(i.width),Math.round(i.height)]}""")
+        check("header: Open .mid sits left of the round info button at the top right", hb[0] and hb[1] == 16 and hb[2] == hb[3], str(hb))
+        check("credit and help text are gone from the page itself",
+              not await pg.evaluate("[...document.querySelectorAll('main *')].some(e=>e.textContent.includes('Salamander'))"))
+        await pg.click("#infob")
+        dl = await pg.evaluate("[about.open,about.textContent.includes('Salamander Grand Piano by Alexander Holm'),about.textContent.includes('CC BY 3.0')]")
+        check("info button opens the info window with the piano credit", all(dl), str(dl))
+        await pg.screenshot(path=str(OUT / "out_info.png"))
+        await pg.click("#about .dh button"); await pg.wait_for_timeout(100)
+        check("✕ closes the info window", not await pg.evaluate("about.open"))
+        await pg.click("#infob"); await pg.mouse.click(5, 5); await pg.wait_for_timeout(100)
+        check("tapping outside closes the info window", not await pg.evaluate("about.open"))
+
+        # --- tempo: original shown top left; − [BPM] + ; tap = ±1, hold repeats ~3-4/s, applied on release ---
+        orig = await pg.evaluate("Math.round(song.bpm)")
+        info = await pg.evaluate("document.getElementById('info').textContent")
+        check("info line shows the file's original tempo", info.startswith(f"Original tempo {orig} BPM"), info)
+        check("tempo starts at the original", await pg.evaluate("[bpm,speed]") == [orig, 1])
+        await pg.click("#tup")
+        st = await pg.evaluate("[bpm,speed,song.bpm,document.getElementById('bpm').textContent]")
+        check("tap + adds 1 BPM and changes speed", st[0] == orig + 1 and abs(st[1] - (orig + 1) / st[2]) < 1e-9 and st[3] == f"{orig + 1}BPM", str(st))
+        await pg.click("#tdn")
+        check("tap − takes it back to exactly the original speed", await pg.evaluate("[bpm,speed]") == [orig, 1])
+        tb = await pg.locator("#tup").bounding_box()
+        await pg.mouse.move(tb["x"] + tb["width"] / 2, tb["y"] + tb["height"] / 2); await pg.mouse.down()
+        await pg.wait_for_timeout(2000)
+        mid = await pg.evaluate("[bpm,speed]")
+        await pg.mouse.up()
+        steps = mid[0] - orig  # expected: 1 at press + 1 at 450 ms + every 280 ms after = 7 in 2 s
+        check("hold + repeats at ~3-4 per second", 6 <= steps <= 8, f"{steps} steps in 2.0 s")
+        check("while held, only the number changes; speed applies on release",
+              mid[1] == 1 and abs(await pg.evaluate("speed") - mid[0] / await pg.evaluate("song.bpm")) < 1e-9)
+        await pg.click("#bpm")
+        check("tapping the number resets to the original tempo", await pg.evaluate("[bpm,speed]") == [orig, 1])
+        await pg.evaluate("bpm=Math.floor(song.bpm*1.5);tempoLabel()"); await pg.click("#tup")
+        await pg.evaluate("bpm=Math.ceil(song.bpm*0.5);tempoLabel()"); await pg.click("#tdn")
+        check("tempo stops at half and 1.5 times the original", await pg.evaluate("bpm===Math.ceil(song.bpm*0.5)"))
+        await pg.click("#bpm")
 
         # --- drop a file on the roll ---
         d = await pg.evaluate(DROP, ["dropped-3-lanes.mid", "audio/midi", 3])

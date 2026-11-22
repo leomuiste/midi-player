@@ -10,7 +10,9 @@
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px -apple-system,system-ui,sans-serif;display:flex;justify-content:center}
 main{width:100%;max-width:520px;padding:20px 16px 32px}
-header{display:flex;align-items:center;gap:12px}
+header{display:flex;align-items:center;gap:8px}
+.ib{flex:none;width:38px;height:38px;padding:0;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.ib svg{width:22px;height:22px}
 h1{flex:1;min-width:0;font-size:20px;margin:4px 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #info{color:var(--mut);font-size:13px;margin-bottom:12px;min-height:1.2em}
 button,label.btn{flex:1;border:0;border-radius:12px;padding:14px 0;font-size:17px;font-weight:600;background:var(--card);color:var(--fg);text-align:center;cursor:pointer}
@@ -45,10 +47,22 @@ body:not(.nosong) .roll canvas{cursor:grab}
 .tog.on{background:var(--acc);color:#001522}
 .row{display:flex;align-items:center;gap:10px;margin-top:16px;color:var(--mut);font-size:14px}
 .row select{flex:1;background:var(--card);color:var(--fg);border:0;border-radius:10px;padding:10px;font-size:16px;-webkit-appearance:none;appearance:none;padding-right:34px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238a929b' stroke-width='2' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
-.row input[type=range]{flex:1;accent-color:var(--acc)}
-#spdv{min-width:3.2em;text-align:right;font-variant-numeric:tabular-nums}
-.hint{color:var(--mut);font-size:12px;margin-top:18px;line-height:1.4}
-.credit{color:#5d646c;font-size:11px;margin-top:8px}
+/* tempo: − [BPM] + ; tap = ±1, hold = repeat */
+.tempo button.st{flex:none;width:56px;padding:9px 0;font-size:24px;line-height:1;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation}
+#bpm{flex:1;padding:9px 0;font-size:20px;font-variant-numeric:tabular-nums;background:none}
+#bpm small{font-size:12px;font-weight:500;color:var(--mut);margin-left:4px}
+/* info window */
+dialog{width:min(480px,calc(100% - 32px));max-height:calc(100% - 48px);padding:0;border:0;border-radius:16px;background:var(--card);color:var(--fg)}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+.dh{display:flex;align-items:center;justify-content:space-between;padding:14px 14px 6px 18px;position:sticky;top:0;background:var(--card)}
+.dh h2{font-size:18px;margin:0}
+.dh button{background:#2a2f36;font-size:16px}
+.db{padding:2px 18px 18px;font-size:14px;line-height:1.45;color:#c9ced4}
+.db h3{font-size:14px;color:var(--fg);margin:14px 0 3px}
+.db p{margin:0}
+.db b{color:var(--fg)}
+.db .credit{margin-top:16px;padding-top:12px;border-top:1px solid #2a2f36;color:var(--mut);font-size:12px}
+.db a{color:var(--acc)}
 /* before a song is loaded: everything but Open .mid is greyed, blurred and inert */
 .ns{transition:opacity .25s,filter .25s}
 .nosong .ns{opacity:.3;filter:grayscale(1) blur(1px);pointer-events:none}
@@ -65,6 +79,7 @@ label.pick{position:absolute;inset:0;z-index:1;cursor:pointer;display:none}
   <h1 id="title">MIDI Player</h1>
   <label class="btn open" for="file">Open .mid</label>
   <input type="file" id="file" accept=".mid,.midi,audio/midi,audio/x-midi">
+  <button id="infob" class="ib" aria-label="Help and credits"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="7.6" r="1.4" fill="currentColor"/><path d="M12 11.2v6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
 </header>
 <div id="info"></div>
 <div class="roll"><canvas id="roll"></canvas><div id="lanes"></div><label class="pick" for="file" aria-label="Open a .mid file"></label></div>
@@ -74,15 +89,36 @@ label.pick{position:absolute;inset:0;z-index:1;cursor:pointer;display:none}
   <button id="play" class="ns">▶ Play</button>
   <button id="stop" class="ns">■ Stop</button>
 </div>
-<div class="row ns">Speed <input type="range" id="spd" min="0.5" max="1.5" step="0.05" value="1"><span id="spdv">1.00×</span></div>
+<div class="row tempo ns">Tempo <button id="tdn" class="st" aria-label="Slower">−</button><button id="bpm" aria-label="Tempo; tap to reset to the original">–</button><button id="tup" class="st" aria-label="Faster">+</button></div>
 <div class="ctl2 ns">
   <button id="met" class="tog">Metronome</button>
   <button id="cin" class="tog">Count-in</button>
 </div>
 <div class="row ns">Sound <select id="inst"><option value="synth">Synth</option><option value="piano">Piano</option><option value="organ">Organ</option><option value="choir">Choir "Ooh"</option></select></div>
-<div class="hint">In the roll: drag left or right to move through the song, S solos a lane, M mutes it, and the note button plays the lane's current or next note. If there's no sound, flip the iPhone's silent switch off.</div>
-<div class="credit">Piano samples: Salamander Grand Piano by Alexander Holm, CC BY 3.0.</div>
 </main>
+<dialog id="about" aria-labelledby="abouth">
+  <div class="dh"><h2 id="abouth">How to use</h2><form method="dialog"><button class="ib" aria-label="Close">✕</button></form></div>
+  <div class="db">
+    <h3>Open a song</h3>
+    <p>With nothing loaded, tap the empty piano roll or drop a .mid file on it. After that, <b>Open .mid</b> (top right) loads another song, and dropping a file on the roll still works.</p>
+    <h3>Piano roll</h3>
+    <p>Each MIDI channel is a lane with its own colour. Drag the roll left or right to move through the song, or tap the timeline under it. If you drag while it plays, it pauses and carries on from where you let go.</p>
+    <h3>Lanes (left side of the roll)</h3>
+    <p><b>S</b> solos a lane and <b>M</b> mutes it. Lanes you can't hear are dimmed. The <b>note button</b> shows the note the lane is singing now, or its next note; tap it to hear that note. <b>♪ All</b> plays every audible lane's note from low to high, then holds the chord. <b>Reset</b> clears solo and mute.</p>
+    <h3>Play and Stop</h3>
+    <p><b>Play</b>/<b>Pause</b> continues from where you are. <b>Stop</b> goes back to the start.</p>
+    <h3>Tempo</h3>
+    <p><b>−</b> and <b>+</b> change the tempo by 1 BPM; hold them to keep changing it. Tap the number to go back to the file's original tempo, which is shown at the top. The range is half to 1.5 times the original. If the file changes tempo partway through, the whole song is scaled.</p>
+    <h3>Metronome and Count-in</h3>
+    <p><b>Metronome</b> clicks every beat. <b>Count-in</b> plays one bar of clicks before the music starts when you press Play.</p>
+    <h3>Sound</h3>
+    <p>Synth, Piano, Organ or Choir "Ooh", used for all lanes.</p>
+    <h3>No sound?</h3>
+    <p>On an iPhone, flip the silent switch off and check the volume.</p>
+    <p style="margin-top:12px">Everything runs in your browser. Files are never uploaded.</p>
+    <p class="credit">Piano samples: Salamander Grand Piano by Alexander Holm, licensed <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a>.</p>
+  </div>
+</dialog>
 <script>
 const EMBED="__SONG_B64__"; // optional built-in song (base64 .mid); empty = none
 const EMBED_NAME="__SONG_NAME__";
@@ -143,7 +179,8 @@ function parseMidi(buf){
     tick+=num*bt;
   }
   if(!bars.length)bars.push({s:0,num:4,beat:0.5});
-  return{notes,duration,bars,beats,flats:sf<0};
+  // bpm: tempo at the start (quarter notes per minute); tempoChanges: the file changes tempo later on
+  return{notes,duration,bars,beats,flats:sf<0,bpm:60e6/tm[0].tempo,tempoChanges:tm.some(m=>m.tempo!==tm[0].tempo)};
 }
 
 // ---------- Audio engine ----------
@@ -360,9 +397,10 @@ function draw(){
   $("barn").textContent="Bar "+(barAt(t)+1)+" / "+song.bars.length;
   document.querySelectorAll(".lane").forEach(el=>{const n=nextNote(+el.dataset.ch,t),b=el.querySelector(".pt"),txt=n?noteName(n.n):"–";if(b.textContent!==txt)b.textContent=txt});
 }
-function showInfo(){if(!song)return;const chans=laneChans().length;$("info").textContent=`${song.notes.length} notes · ${chans} lane${chans>1?"s":""} · ${song.bars.length} bars`}
+function showInfo(){if(!song)return;const chans=laneChans().length;
+  $("info").textContent=`Original tempo ${origBpm()} BPM${song.tempoChanges?" (changes)":""} · ${song.notes.length} notes · ${chans} lane${chans>1?"s":""} · ${song.bars.length} bars`}
 function load(buf,name){
-  try{halt();song=parseMidi(buf);offset=0;$("title").textContent=name;
+  try{halt();song=parseMidi(buf);offset=0;$("title").textContent=name;speed=1;bpm=origBpm();tempoLabel();
     lo=127;hi=0;for(const n of song.notes){lo=Math.min(lo,n.n);hi=Math.max(hi,n.n)}lo-=2;hi+=2;
     $("dur").textContent=fmt(song.duration/speed);buildLanes();showInfo();
   }catch(e){$("info").textContent="Couldn't read file: "+e.message}
@@ -379,7 +417,31 @@ $("file").onchange=e=>{const f=e.target.files[0];if(f)f.arrayBuffer().then(b=>lo
 $("inst").onchange=e=>{const v=e.target.value;if(v==="piano"){ensureCtx();loadPiano().catch(()=>{})}restart(()=>{inst=v})};
 $("met").onclick=e=>{metOn=!metOn;e.currentTarget.classList.toggle("on",metOn)};
 $("cin").onclick=e=>{cinOn=!cinOn;e.currentTarget.classList.toggle("on",cinOn)};
-$("spd").oninput=e=>{restart(()=>{speed=+e.target.value});$("spdv").textContent=speed.toFixed(2)+"×";if(song)$("dur").textContent=fmt(song.duration/speed)};
+
+// ---------- Tempo: − [BPM] + ----------
+// Tap = ±1 BPM. Hold = repeat after TEMPO_DELAY, every TEMPO_REPEAT ms (~3.6 per second).
+// While held, only the number changes; the new tempo is applied on release, so playback isn't restarted on every step.
+const TEMPO_DELAY=450,TEMPO_REPEAT=280;
+let bpm=0,hold=null; // bpm: selected tempo; speed = bpm / song.bpm (exactly 1 at the rounded original)
+const origBpm=()=>Math.round(song.bpm);
+function tempoLabel(){$("bpm").innerHTML=song?`${bpm}<small>BPM</small>`:"–"}
+function applyTempo(){if(!song)return;const s=bpm===origBpm()?1:bpm/song.bpm;
+  if(s!==speed)restart(()=>{speed=s});$("dur").textContent=fmt(song.duration/speed)}
+function stepTempo(d){const v=Math.min(Math.floor(song.bpm*1.5),Math.max(Math.ceil(song.bpm*0.5),bpm+d));if(v!==bpm){bpm=v;tempoLabel()}}
+function holdStop(){if(!hold)return;clearTimeout(hold);hold=null;applyTempo()}
+for(const[id,d]of[["tdn",-1],["tup",1]]){const b=$(id);
+  b.addEventListener("pointerdown",e=>{if(!song||e.button>0)return;holdStop();stepTempo(d);
+    hold=setTimeout(function rep(){stepTempo(d);hold=setTimeout(rep,TEMPO_REPEAT)},TEMPO_DELAY)});
+  for(const ev of["pointerup","pointercancel","pointerleave"])b.addEventListener(ev,holdStop);
+  b.addEventListener("click",e=>{if(e.detail===0&&song){stepTempo(d);applyTempo()}}); // keyboard (Enter/Space)
+  b.addEventListener("contextmenu",e=>e.preventDefault()); // no long-press menu
+}
+$("bpm").onclick=()=>{if(!song)return;bpm=origBpm();tempoLabel();applyTempo()};
+
+// ---------- Info window ----------
+const about=$("about");
+$("infob").onclick=()=>{if(about.showModal)about.showModal();else about.setAttribute("open","")};
+about.addEventListener("click",e=>{if(e.target===about)about.close()}); // tap outside closes
 const bar=$("bar");
 function seek(e){if(!song)return;const r=bar.getBoundingClientRect();const f=Math.min(1,Math.max(0,(e.clientX-r.left)/r.width));const was=playing;if(was)halt();offset=f*song.duration;if(was)play(false);else draw()}
 bar.addEventListener("pointerdown",seek);
