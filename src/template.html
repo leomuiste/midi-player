@@ -18,7 +18,11 @@ label.open{flex:none;padding:9px 14px;font-size:15px;border-radius:10px}
 input[type=file]{display:none}
 /* piano roll; the lane panel sits on its left edge, the playhead at the panel's right edge */
 .roll{position:relative;display:flex;min-height:220px;background:var(--card);border-radius:12px;overflow:hidden}
-.roll canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.roll canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:pan-y}
+body:not(.nosong) .roll canvas{cursor:grab}
+.roll.scrub canvas{cursor:grabbing}
+/* a file held over the roll */
+.roll.drop::after{content:"Drop to open";position:absolute;inset:0;z-index:2;display:flex;align-items:center;justify-content:center;background:#1c2a37;border:2px dashed var(--acc);border-radius:12px;font-weight:600;pointer-events:none}
 #lanes{position:relative;z-index:1;display:flex;flex-direction:column;gap:4px;padding:6px 6px 6px 6px;background:rgba(8,10,13,.55);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}
 #lanes:empty{display:none}
 .lane{display:flex;align-items:center;gap:4px}
@@ -72,7 +76,7 @@ input[type=file]{display:none}
   <button id="cin" class="tog">Count-in</button>
 </div>
 <div class="row ns">Sound <select id="inst"><option value="synth">Synth</option><option value="piano">Piano</option><option value="organ">Organ</option><option value="choir">Choir "Ooh"</option></select></div>
-<div class="hint">In the roll: S solos a lane, M mutes it, and the note button plays the lane's current or next note. If there's no sound, flip the iPhone's silent switch off.</div>
+<div class="hint">In the roll: drag left or right to move through the song, S solos a lane, M mutes it, and the note button plays the lane's current or next note. If there's no sound, flip the iPhone's silent switch off.</div>
 <div class="credit">Piano samples: Salamander Grand Piano by Alexander Holm, CC BY 3.0.</div>
 </main>
 <script>
@@ -336,7 +340,7 @@ function draw(){
   if(cv.width!==bw||cv.height!==bh){cv.width=bw;cv.height=bh}
   g2.setTransform(dpr,0,0,dpr,0,0);g2.clearRect(0,0,W,H);
   if(!song){g2.fillStyle="#8a929b";g2.font="600 17px -apple-system,system-ui,sans-serif";g2.textAlign="center";g2.textBaseline="middle";
-    g2.fillText("Tap Open .mid",W/2,H/2);g2.textAlign="left";g2.textBaseline="alphabetic";return}
+    g2.fillText(matchMedia("(pointer:fine)").matches?"Drop a .mid here or click Open .mid":"Tap Open .mid",W/2,H/2);g2.textAlign="left";g2.textBaseline="alphabetic";return}
   const t=pos(),phx=laneW,px=(W-phx)/AHEAD,x0=t-phx/px,win=W/px,rh=H/(hi-lo+1);
   g2.font="10px -apple-system,system-ui,sans-serif";
   song.bars.forEach((b,i)=>{const x=(b.s-x0)*px;if(x<-40||x>W)return;g2.fillStyle="rgba(255,255,255,.09)";g2.fillRect(x,0,1,H);g2.fillStyle="rgba(255,255,255,.35)";g2.fillText(i+1,x+3,11)});
@@ -366,7 +370,7 @@ function setReady(on){
 cv.onclick=()=>{if(!song)$("file").click()};
 playBtn.onclick=()=>{if(playing){offset=pos();halt();draw()}else play(true)};
 $("stop").onclick=()=>{halt();offset=0;draw()};
-$("file").onchange=e=>{const f=e.target.files[0];if(f)f.arrayBuffer().then(b=>load(b,f.name))};
+$("file").onchange=e=>{const f=e.target.files[0];if(f)f.arrayBuffer().then(b=>load(b,f.name));e.target.value=""};
 $("inst").onchange=e=>{const v=e.target.value;if(v==="piano"){ensureCtx();loadPiano().catch(()=>{})}restart(()=>{inst=v})};
 $("met").onclick=e=>{metOn=!metOn;e.currentTarget.classList.toggle("on",metOn)};
 $("cin").onclick=e=>{cinOn=!cinOn;e.currentTarget.classList.toggle("on",cinOn)};
@@ -375,6 +379,38 @@ const bar=$("bar");
 function seek(e){if(!song)return;const r=bar.getBoundingClientRect();const f=Math.min(1,Math.max(0,(e.clientX-r.left)/r.width));const was=playing;if(was)halt();offset=f*song.duration;if(was)play(false);else draw()}
 bar.addEventListener("pointerdown",seek);
 window.addEventListener("resize",()=>{measure();draw()});
+
+// ---------- Drag the roll to move through the song (mouse or finger) ----------
+// Dragging left moves forward, like sliding paper. Playback pauses during the drag and resumes from the new spot.
+const rollEl=document.querySelector(".roll");
+let drag=null;
+cv.addEventListener("pointerdown",e=>{if(!song||e.button>0)return;drag={id:e.pointerId,x:e.clientX,moved:false,was:playing}});
+cv.addEventListener("pointermove",e=>{
+  if(!drag||e.pointerId!==drag.id)return;
+  if(!drag.moved){
+    if(Math.abs(e.clientX-drag.x)<6)return; // a tap is not a drag
+    drag.moved=true;drag.t0=pos();if(drag.was)halt(); // anchor stays at the touch-down x, so the notes track the finger
+    cv.setPointerCapture(e.pointerId);rollEl.classList.add("scrub");
+  }
+  const px=(cv.clientWidth-laneW)/AHEAD;
+  offset=Math.min(song.duration,Math.max(0,drag.t0-(e.clientX-drag.x)/px));draw();
+});
+function endDrag(e){if(!drag||e.pointerId!==drag.id)return;const d=drag;drag=null;rollEl.classList.remove("scrub");if(d.moved&&d.was)play(false)}
+cv.addEventListener("pointerup",endDrag);cv.addEventListener("pointercancel",endDrag);
+
+// ---------- Drop a .mid file on the roll to open it ----------
+let dropDepth=0;
+const hasFiles=e=>!!e.dataTransfer&&[...e.dataTransfer.types].includes("Files");
+rollEl.addEventListener("dragenter",e=>{if(!hasFiles(e))return;e.preventDefault();dropDepth++;rollEl.classList.add("drop")});
+rollEl.addEventListener("dragover",e=>{if(!hasFiles(e))return;e.preventDefault();e.dataTransfer.dropEffect="copy"});
+rollEl.addEventListener("dragleave",()=>{if(--dropDepth<=0){dropDepth=0;rollEl.classList.remove("drop")}});
+rollEl.addEventListener("drop",e=>{e.preventDefault();dropDepth=0;rollEl.classList.remove("drop");
+  const f=e.dataTransfer&&e.dataTransfer.files[0];if(!f)return;
+  if(!/\.midi?$/i.test(f.name)&&!/midi/i.test(f.type)){$("info").textContent="Not a MIDI file: "+f.name;return}
+  f.arrayBuffer().then(b=>load(b,f.name))});
+// a file dropped anywhere else must not replace the page
+window.addEventListener("dragover",e=>{if(!rollEl.contains(e.target)){e.preventDefault();if(e.dataTransfer)e.dataTransfer.dropEffect="none"}});
+window.addEventListener("drop",e=>{if(!rollEl.contains(e.target))e.preventDefault()});
 if(EMBED){const raw=atob(EMBED),u=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)u[i]=raw.charCodeAt(i);load(u.buffer,EMBED_NAME)}
 else{$("info").textContent="Open a .mid file to start.";setReady(false);draw()}
 </script>

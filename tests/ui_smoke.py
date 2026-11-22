@@ -39,6 +39,16 @@ GEOM = """()=>{const roll=document.querySelector('.roll').getBoundingClientRect(
     playheadAtPanelEdge:Math.abs((pan.right-roll.left)-laneW)<1,ahead:Math.round(roll.right-pan.right),rollW:Math.round(roll.width),rollH:Math.round(roll.height),
     pageOverflowX:document.documentElement.scrollWidth>innerWidth}}"""
 
+# Simulates dragging a file over the roll and dropping it. Args: [file name, MIME type, lanes (0 = not a MIDI file)].
+DROP = """async ([name,type,lanes])=>{const roll=document.querySelector('.roll'),mk=(MK);
+  const dt=new DataTransfer();dt.items.add(new File([lanes?mk(lanes):'not midi'],name,{type}));
+  roll.dispatchEvent(new DragEvent('dragenter',{dataTransfer:dt,bubbles:true,cancelable:true}));const highlighted=roll.classList.contains('drop');
+  roll.dispatchEvent(new DragEvent('drop',{dataTransfer:dt,bubbles:true,cancelable:true}));
+  await new Promise(r=>setTimeout(r,300));
+  return{highlighted,cleared:!roll.classList.contains('drop'),title:document.getElementById('title').textContent,
+    info:document.getElementById('info').textContent,rows:document.querySelectorAll('#lanes .lane').length,
+    disabled:document.querySelectorAll(':disabled').length,nosong:document.body.classList.contains('nosong')}}""".replace("(MK)", "(" + MK_MIDI + ")")
+
 def check_geom(tag, g, lanes):
     check(f"[{tag}] {lanes} lane rows render in the roll", g["rows"] == lanes == g["lanes"] and g["rowsInRoll"], str(g))
     check(f"[{tag}] ♪ All / Reset inside roll, below the rows", g["cornerInRoll"] and g["cornerBelowRows"])
@@ -62,6 +72,9 @@ async def main():
             n = await pg.evaluate('document.querySelectorAll(":disabled").length')
             check("no-song: controls disabled", n > 0 and await pg.evaluate('document.body.classList.contains("nosong")'), f"{n} disabled")
             await pg.screenshot(path=str(OUT / "out_nosong.png"), full_page=True)
+            d = await pg.evaluate(DROP, ["dropped-4-lanes.mid", "audio/midi", 4])
+            check("no-song: dropping a .mid on the roll opens it and enables controls",
+                  d["highlighted"] and d["cleared"] and d["title"] == "dropped-4-lanes.mid" and d["rows"] == 4 and d["disabled"] == 0 and not d["nosong"], str(d))
             check("no JS errors", not errs, str(errs)); await b.close(); return
 
         # --- layout with the built-in song ---
@@ -118,6 +131,42 @@ async def main():
         # --- end of song stops playback ---
         await pg.evaluate("(()=>{offset=song.duration-1})()"); await pg.click("#play"); await pg.wait_for_timeout(2500)
         check("stops at end", await pg.evaluate("!playing && offset===0"))
+
+        # --- drag the roll to move through the song ---
+        box = await pg.locator("#roll").bounding_box()
+        y = box["y"] + box["height"] / 2
+        lw, pxs = await pg.evaluate("[laneW,(cv.clientWidth-laneW)/AHEAD]")  # px per second
+        async def drag_roll(x0, dx, mid=None):
+            await pg.mouse.move(x0, y); await pg.mouse.down()
+            for i in range(1, 11): await pg.mouse.move(x0 + dx * i / 10, y)
+            r = await pg.evaluate(mid) if mid else None
+            await pg.mouse.up(); return r
+        await pg.evaluate("offset=2;draw()")
+        await drag_roll(box["x"] + box["width"] - 20, -100)
+        o = await pg.evaluate("offset")
+        check("drag left moves forward by the dragged distance", abs(o - (2 + 100 / pxs)) < 0.05, f"offset {o:.2f}, expected {2 + 100 / pxs:.2f}")
+        await drag_roll(box["x"] + box["width"] - 120, 60)
+        o2 = await pg.evaluate("offset")
+        check("drag right moves back", abs(o2 - (o - 60 / pxs)) < 0.05, f"offset {o2:.2f}")
+        await pg.evaluate("offset=0.5;draw()")
+        await drag_roll(box["x"] + lw + 10, 200)
+        check("dragging back stops at the start", await pg.evaluate("offset") == 0)
+        await pg.evaluate("offset=2;draw()"); await pg.click("#play"); await pg.wait_for_timeout(400)
+        await pg.mouse.click(box["x"] + box["width"] - 60, y); await pg.wait_for_timeout(100)
+        check("a tap on the roll doesn't pause playback", await pg.evaluate("playing"))
+        before = await pg.evaluate("pos()")
+        during = await drag_roll(box["x"] + box["width"] - 20, -100, "playing")
+        await pg.wait_for_timeout(300)
+        after = await pg.evaluate("[playing,pos()]")
+        check("drag while playing pauses, then resumes from the new spot",
+              during is False and after[0] and after[1] > before + 100 / pxs * 0.8, f"before {before:.2f}, after {after[1]:.2f}")
+        await pg.click("#play")
+
+        # --- drop a file on the roll ---
+        d = await pg.evaluate(DROP, ["dropped-3-lanes.mid", "audio/midi", 3])
+        check("dropping a .mid on the roll opens it", d["highlighted"] and d["cleared"] and d["title"] == "dropped-3-lanes.mid" and d["rows"] == 3, str(d))
+        d = await pg.evaluate(DROP, ["notes.txt", "text/plain", 0])
+        check("dropping a non-MIDI file is refused", d["info"].startswith("Not a MIDI file") and d["title"] == "dropped-3-lanes.mid" and d["cleared"], d["info"])
 
         # --- 1 and 8 lanes, 390 and 320 px wide ---
         for w in (390, 320):
