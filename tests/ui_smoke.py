@@ -90,7 +90,7 @@ async def main():
             check("no-song: header Open .mid hidden", not await pg.locator("label.open").is_visible())
             check("no-song: info button visible and usable, tempo buttons disabled",
                   await pg.locator("#infob").is_enabled() and await pg.locator("#infob").is_visible()
-                  and await pg.evaluate('["tdn","tup","bpm"].every(id=>document.getElementById(id).disabled)'))
+                  and await pg.evaluate('["tdn","tup","bpm","rew"].every(id=>document.getElementById(id).disabled)'))
             async with pg.expect_file_chooser(timeout=3000) as fc:
                 await pg.click(".roll")
             await (await fc.value).set_files({"name": "picked-2-lanes.mid", "mimeType": "audio/midi", "buffer": mk_midi(2)})
@@ -212,6 +212,8 @@ async def main():
         dl = await pg.evaluate("[about.open,about.textContent.includes('Salamander Grand Piano by Alexander Holm'),about.textContent.includes('CC BY 3.0')]")
         check("info button opens the info window with the piano credit", all(dl), str(dl))
         hs = await pg.evaluate("[[...about.querySelectorAll('h3')].map(h=>h.textContent),about.textContent.includes('iPhone')]")
+        by_ = await pg.evaluate("(()=>{const c=about.querySelector('.credit');return[c.nextElementSibling&&c.nextElementSibling.textContent,!c.nextElementSibling.nextElementSibling]})()")
+        check("info window ends with 'Made by Leo.' right after the piano credit", by_ == ["Made by Leo.", True], str(by_))
         check("info window: no Play/Stop, Metronome or Sound titles, not iPhone-specific",
               not any(h in hs[0] for h in ("Play and Stop", "Metronome and Count-in", "Sound")) and not hs[1], str(hs))
         await pg.screenshot(path=str(OUT / "out_info.png"))
@@ -270,6 +272,39 @@ async def main():
         await pg.evaluate("calls.length=0"); await pg.click("#pall"); await pg.wait_for_timeout(100)
         check("unison: ♪ All plays a shared pitch once", await pg.evaluate("calls.length") == 1, str(await pg.evaluate("calls.length")))
         await pg.evaluate("()=>{voice=origVoice}")
+
+        # --- timeline: knob, tap and drag (paused and playing), larger touch target ---
+        bb = await pg.locator("#bar").bounding_box(); by = bb["y"] + bb["height"] / 2; dur = await pg.evaluate("song.duration")
+        bx = lambda f: bb["x"] + bb["width"] * f
+        await pg.evaluate("halt();offset=0;draw()")
+        await pg.mouse.move(bx(0.2), by); await pg.mouse.down()
+        for i in range(1, 9): await pg.mouse.move(bx(0.2 + 0.4 * i / 8), by)
+        kn = await pg.evaluate("(()=>{const k=document.getElementById('knob').getBoundingClientRect();return[(k.left+k.right)/2,k.width,offset]})()")
+        await pg.mouse.up()
+        check("timeline drag (paused) moves the position and the knob follows", abs(kn[2] - 0.6 * dur) < 0.05 * dur and abs(kn[0] - bx(0.6)) < 2
+              and not await pg.evaluate("playing"), f"offset {kn[2]:.2f} of {dur:.2f}, knob x {kn[0]:.0f} vs {bx(0.6):.0f}, knob {kn[1]:.0f} px")
+        await pg.mouse.click(bx(0.3), by - 11)
+        check("a tap just above the thin bar still seeks (larger touch target)", abs(await pg.evaluate("offset") - 0.3 * dur) < 0.03 * dur)
+        await pg.click("#play"); await pg.wait_for_timeout(300)
+        await pg.mouse.move(bx(0.3), by); await pg.mouse.down()
+        for i in range(1, 6): await pg.mouse.move(bx(0.3 + 0.2 * i / 5), by)
+        during = await pg.evaluate("playing"); await pg.mouse.up(); await pg.wait_for_timeout(300)
+        after = await pg.evaluate("[playing,pos()]")
+        check("timeline drag while playing pauses, then resumes from the new spot", during is False and after[0] and 0.5 * dur <= after[1] < 0.5 * dur + 1, f"after {after}")
+        await pg.click("#play")
+
+        # --- ⏮ back to start: square, same row as Play/Stop; keeps playing if it was ---
+        rr = await pg.evaluate("""()=>{const r=id=>document.getElementById(id).getBoundingClientRect(),w=r('rew'),p=r('play'),s=r('stop');
+          return[Math.round(w.width),Math.round(w.height),Math.round(p.height),Math.round(s.height),w.right<=p.left,Math.abs(w.top-p.top)<1]}""")
+        check("⏮ is square, same height and row as Play/Stop, left of Play; Play/Stop 44 px", rr[0] == rr[1] == rr[2] == rr[3] == 44 and rr[4] and rr[5], str(rr))
+        await pg.evaluate("offset=5;draw()"); await pg.click("#rew")
+        check("⏮ while paused goes to the start", await pg.evaluate("[offset,playing]") == [0, False])
+        await pg.evaluate("offset=5;draw()"); await pg.click("#play"); await pg.wait_for_timeout(300)
+        await pg.click("#rew"); await pg.wait_for_timeout(300)
+        rw = await pg.evaluate("[playing,pos()]")
+        check("⏮ while playing jumps to the start and keeps playing", rw[0] and rw[1] < 1, str(rw))
+        await pg.click("#play")
+        await pg.screenshot(path=str(OUT / "out_controls.png"), clip={"x": 0, "y": 360, "width": 390, "height": 260})
 
         # --- drop a file on the roll ---
         d = await pg.evaluate(DROP, ["dropped-3-lanes.mid", "audio/midi", 3])

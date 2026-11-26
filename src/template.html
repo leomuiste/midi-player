@@ -40,11 +40,18 @@ body:not(.nosong) .roll canvas{cursor:grab}
 .lane.off .sw,.lane.off .pt,.lane.off .s:not(.on),.lane.off .m:not(.on){opacity:.35}
 .lnc{display:flex;gap:4px;margin-top:auto;padding-top:4px}
 .lnc button{padding:5px 0;font-size:12px;font-weight:500;border-radius:7px;background:rgba(255,255,255,.12)}
-.bar{height:6px;background:#2a2f36;border-radius:3px;margin:14px 0 6px;position:relative;touch-action:none}
+.bar{height:6px;background:#2a2f36;border-radius:3px;margin:18px 0 8px;position:relative;touch-action:none;cursor:pointer}
+.bar::before{content:"";position:absolute;left:0;right:0;top:-14px;bottom:-14px} /* larger touch target */
 .bar>i{position:absolute;left:0;top:0;bottom:0;background:var(--acc);border-radius:3px;width:0}
+/* timeline knob at the play position */
+#knob{position:absolute;top:50%;left:0;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.5);pointer-events:none;transition:transform .1s}
+.bar.drag #knob{transform:scale(1.25)}
 .time{display:flex;justify-content:space-between;color:var(--mut);font-size:12px;font-variant-numeric:tabular-nums}
 .time span:nth-child(2){color:var(--fg)}
 .ctl{display:flex;gap:10px;margin-top:16px}
+.ctl button{height:44px;padding:0;font-size:16px}
+.ctl button.sq{flex:none;width:44px;display:flex;align-items:center;justify-content:center}
+.sq svg{width:20px;height:20px}
 #play{background:var(--acc);color:#001522}
 .ctl2{display:flex;gap:8px;margin-top:16px}
 .ctl2 button{padding:11px 0;font-size:15px;font-weight:600}
@@ -69,6 +76,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 .db b{color:var(--fg)}
 .db .credit{margin-top:16px;padding-top:12px;border-top:1px solid #2a2f36;color:var(--mut);font-size:12px}
 .db a{color:var(--acc)}
+.db .by{margin-top:4px;color:var(--mut);font-size:12px}
 /* before a song is loaded: everything but Open .mid is greyed, blurred and inert */
 .ns{transition:opacity .25s,filter .25s}
 .nosong .ns{opacity:.3;filter:grayscale(1) blur(1px);pointer-events:none}
@@ -89,9 +97,10 @@ label.pick{position:absolute;inset:0;z-index:1;cursor:pointer;display:none}
 </header>
 <div id="info"></div>
 <div class="roll"><canvas id="roll"></canvas><div id="lanes"></div><div id="cnt" aria-hidden="true"></div><label class="pick" for="file" aria-label="Open a .mid file"></label></div>
-<div class="bar ns" id="bar"><i id="fill"></i></div>
+<div class="bar ns" id="bar"><i id="fill"></i><b id="knob"></b></div>
 <div class="time ns"><span id="cur">0:00</span><span id="barn"></span><span id="dur">0:00</span></div>
 <div class="ctl">
+  <button id="rew" class="ns sq" aria-label="Back to start"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="2.6" height="14" rx="1" fill="currentColor"/><path d="M19 6v12a.9.9 0 0 1-1.4.75L9 12.75a.9.9 0 0 1 0-1.5l8.6-6A.9.9 0 0 1 19 6z" fill="currentColor"/></svg></button>
   <button id="play" class="ns">▶ Play</button>
   <button id="stop" class="ns">■ Stop</button>
 </div>
@@ -108,10 +117,10 @@ label.pick{position:absolute;inset:0;z-index:1;cursor:pointer;display:none}
     <h3>Open a song</h3>
     <p>With nothing loaded, tap the empty piano roll or drop a .mid file on it. After that, <b>Open .mid</b> (top right) loads another song, and dropping a file on the roll still works.</p>
     <h3>Piano roll</h3>
-    <p>Each MIDI channel is a lane with its own colour. Drag the roll left or right to move through the song, or tap the timeline under it. If you drag while it plays, it pauses and carries on from where you let go.</p>
+    <p>Each MIDI channel is a lane with its own colour. Drag the roll left or right to move through the song, or tap or drag the timeline under it. If you drag while it plays, it pauses and carries on from where you let go.</p>
     <h3>Lanes (left side of the roll)</h3>
     <p><b>S</b> solos a lane and <b>M</b> mutes it. Lanes you can't hear are dimmed. The <b>note button</b> shows the note the lane is singing now, or its next note; tap it to hear that note. <b>♪ All</b> plays every audible lane's note from low to high, then holds the chord. <b>Reset</b> clears solo and mute.</p>
-    <p class="sep"><b>Play</b>/<b>Pause</b> continues from where you are. <b>Stop</b> goes back to the start.</p>
+    <p class="sep"><b>Play</b>/<b>Pause</b> continues from where you are. <b>Stop</b> stops and goes back to the start. <b>⏮</b> jumps back to the start and keeps playing if the song was playing.</p>
     <h3>Tempo</h3>
     <p><b>−</b> and <b>+</b> change the tempo by 1 BPM; hold them to keep changing it. Tap the number to go back to the file's original tempo, which is shown at the top. The range is half to 1.5 times the original. If the file changes tempo partway through, the whole song is scaled.</p>
     <p class="sep"><b>Metronome</b> clicks every beat. <b>Count-in</b> plays one bar of clicks before the music starts when you press Play.</p>
@@ -119,6 +128,7 @@ label.pick{position:absolute;inset:0;z-index:1;cursor:pointer;display:none}
     <p>Check that your device's silent mode or silent switch is off and the volume is up.</p>
     <p style="margin-top:12px">Everything runs in your browser. Files are never uploaded.</p>
     <p class="credit">Piano samples: Salamander Grand Piano by Alexander Holm, licensed <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a>.</p>
+    <p class="by">Made by Leo.</p>
   </div>
 </dialog>
 <script>
@@ -414,7 +424,7 @@ function draw(){
   g2.globalAlpha=1;g2.fillStyle="#fff";g2.fillRect(phx,0,1.5,H);
   let k=0;if(playing&&ctx&&countMarks.length&&ctx.currentTime<seg.c0)countMarks.forEach((m,i)=>{if(ctx.currentTime>=m)k=i+1});
   const cnt=$("cnt"),ct=k?String(k):"";if(cnt.textContent!==ct)cnt.textContent=ct;
-  $("fill").style.width=(t/song.duration*100)+"%";$("cur").textContent=fmt(t/speed);
+  $("fill").style.width=$("knob").style.left=(t/song.duration*100)+"%";$("cur").textContent=fmt(t/speed);
   $("barn").textContent="Bar "+(barAt(t)+1)+" / "+song.bars.length;
   document.querySelectorAll(".lane").forEach(el=>{const n=nextNote(+el.dataset.ch,t),b=el.querySelector(".pt"),txt=n?noteName(n.n):"–";if(b.textContent!==txt)b.textContent=txt});
 }
@@ -463,9 +473,19 @@ $("bpm").onclick=()=>{if(!song)return;bpm=origBpm();tempoLabel();applyTempo()};
 const about=$("about");
 $("infob").onclick=()=>{if(about.showModal)about.showModal();else about.setAttribute("open","")};
 about.addEventListener("click",e=>{if(e.target===about)about.close()}); // tap outside closes
-const bar=$("bar");
-function seek(e){if(!song)return;const r=bar.getBoundingClientRect();const f=Math.min(1,Math.max(0,(e.clientX-r.left)/r.width));const was=playing;if(was)halt();offset=f*song.duration;if(was)play(false);else draw()}
-bar.addEventListener("pointerdown",seek);
+// ⏮: back to the start; keeps playing if it was (Stop stops and goes to the start)
+$("rew").onclick=()=>{if(!song)return;const was=playing;if(was)halt();offset=0;if(was)play(false);else draw()};
+
+// ---------- Timeline: tap to jump, or drag the knob (or anywhere on the bar) ----------
+// Playback pauses while dragging and resumes on release (unless released at the very end).
+const bar=$("bar");let scrub=null;
+const barPos=e=>{const r=bar.getBoundingClientRect();return Math.min(1,Math.max(0,(e.clientX-r.left)/r.width))*song.duration};
+bar.addEventListener("pointerdown",e=>{if(!song||e.button>0)return;bar.setPointerCapture(e.pointerId);
+  scrub={id:e.pointerId,was:playing};if(playing)halt();bar.classList.add("drag");offset=barPos(e);draw()});
+bar.addEventListener("pointermove",e=>{if(!scrub||e.pointerId!==scrub.id)return;offset=barPos(e);draw()});
+function endScrub(e){if(!scrub||e.pointerId!==scrub.id)return;const was=scrub.was;scrub=null;bar.classList.remove("drag");
+  if(was&&offset<song.duration-0.05)play(false)}
+bar.addEventListener("pointerup",endScrub);bar.addEventListener("pointercancel",endScrub);
 window.addEventListener("resize",()=>{measure();draw()});
 
 // ---------- Drag the roll to move through the song (mouse or finger) ----------
