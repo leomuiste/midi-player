@@ -90,7 +90,7 @@ async def main():
             check("no-song: header Open .mid hidden", not await pg.locator("label.open").is_visible())
             check("no-song: info button visible and usable, tempo buttons disabled",
                   await pg.locator("#infob").is_enabled() and await pg.locator("#infob").is_visible()
-                  and await pg.evaluate('["tdn","tup","bpm","rew"].every(id=>document.getElementById(id).disabled)'))
+                  and await pg.evaluate('["tdn","tup","bpm"].every(id=>document.getElementById(id).disabled)'))
             async with pg.expect_file_chooser(timeout=3000) as fc:
                 await pg.click(".roll")
             await (await fc.value).set_files({"name": "picked-2-lanes.mid", "mimeType": "audio/midi", "buffer": mk_midi(2)})
@@ -294,17 +294,12 @@ async def main():
         check("timeline drag while playing pauses, then resumes from the new spot", during is False and after[0] and 0.5 * dur <= after[1] < 0.5 * dur + 1, f"after {after}")
         await pg.click("#play")
 
-        # --- ⏮ back to start: square, same row as Play/Stop; keeps playing if it was ---
-        rr = await pg.evaluate("""()=>{const r=id=>document.getElementById(id).getBoundingClientRect(),w=r('rew'),p=r('play'),s=r('stop');
-          return[Math.round(w.width),Math.round(w.height),Math.round(p.height),Math.round(s.height),s.right<=w.left,Math.abs(w.top-p.top)<1]}""")
-        check("⏮ is square, same height and row as Play/Stop, right of Stop; Play/Stop 44 px", rr[0] == rr[1] == rr[2] == rr[3] == 44 and rr[4] and rr[5], str(rr))
-        await pg.evaluate("offset=5;draw()"); await pg.click("#rew")
-        check("⏮ while paused goes to the start", await pg.evaluate("[offset,playing]") == [0, False])
-        await pg.evaluate("offset=5;draw()"); await pg.click("#play"); await pg.wait_for_timeout(300)
-        await pg.click("#rew"); await pg.wait_for_timeout(300)
-        rw = await pg.evaluate("[playing,pos()]")
-        check("⏮ while playing jumps to the start and keeps playing", rw[0] and rw[1] < 1, str(rw))
-        await pg.click("#play")
+        # --- Play / Stop row: two 44 px buttons, no back-to-start button; Stop returns to the start ---
+        rr = await pg.evaluate("""()=>{const r=id=>document.getElementById(id).getBoundingClientRect();
+          return[document.querySelectorAll('.ctl button').length,Math.round(r('play').height),Math.round(r('stop').height),!document.getElementById('rew')]}""")
+        check("Play/Stop row has just Play and Stop, 44 px tall", rr == [2, 44, 44, True], str(rr))
+        await pg.evaluate("offset=5;draw()"); await pg.click("#play"); await pg.wait_for_timeout(300); await pg.click("#stop")
+        check("Stop stops and goes back to the start", await pg.evaluate("[offset,playing]") == [0, False])
         await pg.screenshot(path=str(OUT / "out_controls.png"), clip={"x": 0, "y": 360, "width": 390, "height": 260})
 
         # --- drop a file on the roll ---
