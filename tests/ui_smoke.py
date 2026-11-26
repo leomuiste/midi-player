@@ -213,7 +213,8 @@ async def main():
         check("info button opens the info window with the piano credit", all(dl), str(dl))
         hs = await pg.evaluate("[[...about.querySelectorAll('h3')].map(h=>h.textContent),about.textContent.includes('iPhone')]")
         by_ = await pg.evaluate("(()=>{const c=about.querySelector('.credit');return[c.nextElementSibling&&c.nextElementSibling.textContent,!c.nextElementSibling.nextElementSibling]})()")
-        check("info window ends with 'Made by Leo.' right after the piano credit", by_ == ["Made by Leo.", True], str(by_))
+        check("info window ends with the 'Made by' line right after the piano credit",
+              by_ == ["Made by Leo Muiste with some help from Claude Code.", True], str(by_))
         check("info window: no Play/Stop, Metronome or Sound titles, not iPhone-specific",
               not any(h in hs[0] for h in ("Play and Stop", "Metronome and Count-in", "Sound")) and not hs[1], str(hs))
         await pg.screenshot(path=str(OUT / "out_info.png"))
@@ -295,8 +296,8 @@ async def main():
 
         # --- ⏮ back to start: square, same row as Play/Stop; keeps playing if it was ---
         rr = await pg.evaluate("""()=>{const r=id=>document.getElementById(id).getBoundingClientRect(),w=r('rew'),p=r('play'),s=r('stop');
-          return[Math.round(w.width),Math.round(w.height),Math.round(p.height),Math.round(s.height),w.right<=p.left,Math.abs(w.top-p.top)<1]}""")
-        check("⏮ is square, same height and row as Play/Stop, left of Play; Play/Stop 44 px", rr[0] == rr[1] == rr[2] == rr[3] == 44 and rr[4] and rr[5], str(rr))
+          return[Math.round(w.width),Math.round(w.height),Math.round(p.height),Math.round(s.height),s.right<=w.left,Math.abs(w.top-p.top)<1]}""")
+        check("⏮ is square, same height and row as Play/Stop, right of Stop; Play/Stop 44 px", rr[0] == rr[1] == rr[2] == rr[3] == 44 and rr[4] and rr[5], str(rr))
         await pg.evaluate("offset=5;draw()"); await pg.click("#rew")
         check("⏮ while paused goes to the start", await pg.evaluate("[offset,playing]") == [0, False])
         await pg.evaluate("offset=5;draw()"); await pg.click("#play"); await pg.wait_for_timeout(300)
